@@ -1,6 +1,6 @@
 
 
-#### 5-DeepLearning
+#### DeepLearning
 
 ##### 1-BackpropAndMLP
 - [1-Backpropagation](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/1-BackpropAndMLP/1-Backpropagation.html)
