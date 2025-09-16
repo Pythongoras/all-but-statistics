@@ -7610,15 +7610,15 @@ $$p_\theta(\mathbf{x}) = \mathcal{N}(\mathbf{x};b,WW^\top+\sigma^2 I)$$</p>
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h4 id="Lower-Bound-Surrogate-of-$p_%5Ctheta(%5Cmathbf%7Bx%7D)$-By-Variational-Inference">Lower Bound Surrogate of $p_\theta(\mathbf{x})$ By Variational Inference<a class="anchor-link" href="#Lower-Bound-Surrogate-of-$p_%5Ctheta(%5Cmathbf%7Bx%7D)$-By-Variational-Inference">¶</a></h4><p>How can we maximize on $\log p_\theta(\mathbf{x})$ if we cannot compute a closed-form by $p_\theta(\mathbf{x}) = \int p_\theta(\mathbf{x} \mid \mathbf{z}) \, p(\mathbf{z}) \, d\mathbf{z}$? There is an alternative way to compute $p_\theta(\mathbf{x})$ - Bayesian Rule.</p>
 <blockquote>
-<p>We explicitly write $p_\theta(\mathbf{z}\mid \mathbf{x})$ (instead of simply $p(\mathbf{z}\mid \mathbf{x})$) to emphasize that it is determined by the decoder likelihood $p_\theta(\mathbf{x}\mid \mathbf{z})$ via Bayesian Rule, and therefore varies with the decoder parameters. In other words, the true posterior is not free-form but constrained by the expressiveness and parameterization of the decoder.
-$$
+<p>We explicitly write $p_\theta(\mathbf{z}\mid \mathbf{x})$ (instead of simply $p(\mathbf{z}\mid \mathbf{x})$) to emphasize that it is determined by the decoder likelihood $p_\theta(\mathbf{x}\mid \mathbf{z})$ via Bayesian Rule, and therefore varies with the decoder parameters. In other words, the true posterior is not free-form but constrained by the expressiveness and parameterization of the decoder.</p>
+</blockquote>
+<p>$$
 p_\theta(\mathbf{z}\mid \mathbf{x}) = \frac{p_\theta(\mathbf{x}\mid \mathbf{z})\,p(\mathbf{z})}{p_\theta(\mathbf{x})}
 \quad \Rightarrow \quad
 p_\theta(\mathbf{x}) 
 = \frac{p_\theta(\mathbf{x}\mid \mathbf{z})\,p(\mathbf{z})}{p_\theta(\mathbf{z}\mid \mathbf{x})}, \quad p_\theta(\mathbf{z}\mid \mathbf{x}) &gt; 0
 $$
 This is where <strong>variational inference (VI)</strong> comes in. Instead of working with the intractable posterior $p_\theta(\mathbf{z}\mid \mathbf{x})$ <em>(since $p_\theta(\mathbf{x})$ doesn't have a closed-form, $p_\theta(\mathbf{z}\mid \mathbf{x}) = \frac{p_\theta(\mathbf{x}\mid \mathbf{z})\,p(\mathbf{z})}{p_\theta(\mathbf{x})}$ doesn't have a closed-form neither)</em>, we introduce an approximate posterior $q_\phi(\mathbf{z}\mid \mathbf{x})$ modeled by the encoder.</p>
-</blockquote>
 <blockquote>
 <p><strong>Variational Inference (VI)</strong> (for more info, see VI notes in Probability)</p>
 <p>We have observed data $\mathbf{x}$, latent variables $\mathbf{z}$ with a prior $p(\mathbf{z})$, and a model likelihood $p(\mathbf{x}\mid \mathbf{z})$. The goal is to compute the posterior (such as in Bayesian Parameter Estimation, Bayesian Linear Regression etc.)
@@ -7865,7 +7865,7 @@ The first term corresponds to the <strong>reconstruction loss</strong> (BCE, MSE
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [7]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="c1"># Hyperparameters</span>
