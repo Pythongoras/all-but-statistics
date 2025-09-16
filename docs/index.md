@@ -11,6 +11,7 @@
 
 ##### 3-GenerativeModels
 - [GAN](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/3-GenerativeModels/GAN.html)
+- [VAE](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/3-GenerativeModels/VAE.html)
 
 ##### 4-RNN
 
