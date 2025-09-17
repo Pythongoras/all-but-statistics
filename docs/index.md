@@ -14,5 +14,6 @@
 - [VAE](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/3-GenerativeModels/VAE.html)
 
 ##### 4-RNN
+- [RNN](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/4-RNN/RNN.html)
 
 ##### 5-CNN
