@@ -15,5 +15,8 @@
 
 ##### 4-RNN
 - [RNN](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/4-RNN/RNN.html)
+- [GRUandLSTM](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/4-RNN/GRUandLSTM.html)
+- [BiRNN](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/4-RNN/BiRNN.html)
+- [RNNwithAttention](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/4-RNN/RNNwithAttention.html)
 
 ##### 5-CNN
