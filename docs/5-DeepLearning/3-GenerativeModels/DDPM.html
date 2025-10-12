@@ -7528,7 +7528,7 @@ a.anchor-link {
 <ol>
 <li>Why the forward process converges to standard Gaussian?</li>
 <li>What is the input and output of the neural network in reverse process?</li>
-<li>How to compute the mean and variance of $p_\theta(\bm x_{t-1}\mid \bm x_t)$?</li>
+<li>How to compute the mean and variance of $p_\theta(\bm{x}_{t-1}\mid \bm{x}_t)$?</li>
 <li>What are the steps of the generationg process?</li>
 <li>How do we derive the L2 loss from MLE / ELBO?</li>
 <li>How to implement DDPM in pytorch?</li>
@@ -7570,19 +7570,19 @@ $$
  \quad\text{with}\quad
  \bar\alpha_t = \prod_{s=1}^t (1-\beta_s).
  $$
-At training time we can sample any noisy state $\mathbf{x}_t$ directly from $\mathbf{x}_0$ and $\bm{\epsilon}$ without running the full chain
+At training time we can sample any noisy state $\mathbf{x}_t$ directly from $\mathbf{x}_0$ and $\boldsymbol{\epsilon}$ without running the full chain
 $$
  \mathbf{x}_t = \sqrt{\bar\alpha_t}\mathbf{x}_0 +
- \sqrt{1-\bar\alpha_t}\bm{\epsilon},
+ \sqrt{1-\bar\alpha_t}\boldsymbol{\epsilon},
  \qquad
- \bm{\epsilon} \sim \mathcal{N}(0,I).
+ \boldsymbol{\epsilon} \sim \mathcal{N}(0,I).
  $$</p>
 <blockquote>
-<p>We can prove the closed‑form expression for $q(\mathbf{x}_t\mid \mathbf{x}_0)$ by simple induction. For $t=1$ we have $\mathbf{x}_1 = \sqrt{\alpha_1}\mathbf{x}_0 + \sqrt{1-\alpha_1}\bm{\epsilon}_1$ so the mean is $\sqrt{\alpha_1}\mathbf{x}_0$ and the variance is $(1-\alpha_1)I$, which matches $1-\bar\alpha_1$. Assume for some $t-1$ that $\mathbf{x}_{t-1} = \sqrt{\bar\alpha_{t-1}}\mathbf{x}_0 + \sqrt{1-\bar\alpha_{t-1}}\bm{\epsilon}'$ with $\bm{\epsilon}' \sim \mathcal{N}(0,I)$. Plugging this into $\mathbf{x}_t = \sqrt{\alpha_t}\mathbf{x}_{t-1} + \sqrt{1-\alpha_t}\bm{\epsilon}_t$ gives a mean $\sqrt{\alpha_t\bar\alpha_{t-1}}\mathbf{x}_0 = \sqrt{\bar\alpha_t}\mathbf{x}_0$ and a variance $\alpha_t(1-\bar\alpha_{t-1}) + (1-\alpha_t) = 1-\bar\alpha_t$. Thus by induction, $\mathbf{x}_t = \sqrt{\bar\alpha_t}\mathbf{x}_0 + \sqrt{1-\bar\alpha_t}\bm{\epsilon}$ with $\bm{\epsilon} \sim \mathcal{N}(0,I)$.</p>
+<p>We can prove the closed‑form expression for $q(\mathbf{x}_t\mid \mathbf{x}_0)$ by simple induction. For $t=1$ we have $\mathbf{x}_1 = \sqrt{\alpha_1}\mathbf{x}_0 + \sqrt{1-\alpha_1}\boldsymbol{\epsilon}_1$ so the mean is $\sqrt{\alpha_1}\mathbf{x}_0$ and the variance is $(1-\alpha_1)I$, which matches $1-\bar\alpha_1$. Assume for some $t-1$ that $\mathbf{x}_{t-1} = \sqrt{\bar\alpha_{t-1}}\mathbf{x}_0 + \sqrt{1-\bar\alpha_{t-1}}\boldsymbol{\epsilon}'$ with $\boldsymbol{\epsilon}' \sim \mathcal{N}(0,I)$. Plugging this into $\mathbf{x}_t = \sqrt{\alpha_t}\mathbf{x}_{t-1} + \sqrt{1-\alpha_t}\boldsymbol{\epsilon}_t$ gives a mean $\sqrt{\alpha_t\bar\alpha_{t-1}}\mathbf{x}_0 = \sqrt{\bar\alpha_t}\mathbf{x}_0$ and a variance $\alpha_t(1-\bar\alpha_{t-1}) + (1-\alpha_t) = 1-\bar\alpha_t$. Thus by induction, $\mathbf{x}_t = \sqrt{\bar\alpha_t}\mathbf{x}_0 + \sqrt{1-\bar\alpha_t}\boldsymbol{\epsilon}$ with $\boldsymbol{\epsilon} \sim \mathcal{N}(0,I)$.</p>
 </blockquote>
 </li>
 <li><p><strong>Converge to standard Gaussian</strong></p>
-<p>Over time $\bar\alpha_t \to 0$, meaning more and more noise. Mathematically $\mathbf{x}_t = \sqrt{\bar\alpha_t}\mathbf{x}_0 + \sqrt{1-\bar\alpha_t}\bm{\epsilon} \rightarrow \bm{\epsilon} \sim \mathcal{N}(0,I)$</p>
+<p>Over time $\bar\alpha_t \to 0$, meaning more and more noise. Mathematically $\mathbf{x}_t = \sqrt{\bar\alpha_t}\mathbf{x}_0 + \sqrt{1-\bar\alpha_t}\boldsymbol{\epsilon} \rightarrow \boldsymbol{\epsilon} \sim \mathcal{N}(0,I)$</p>
 </li>
 </ol>
 <h3 id="Reverse-Process:-From-Noise-Back-to-Data">Reverse Process: From Noise Back to Data<a class="anchor-link" href="#Reverse-Process:-From-Noise-Back-to-Data">¶</a></h3><blockquote>
@@ -7620,26 +7620,26 @@ By the Gaussian Conditioning Formula, let $\mathbf{x} = \mathbf{x}_{t-1}$, $\mat
 $$\Sigma' = \frac{(1 - \bar\alpha_{t-1}) \beta_t}{1 - \bar\alpha_t} I$$
 $$\mu' = 
 \frac{\sqrt{\bar\alpha_{t-1}} \beta_t}{1 - \bar\alpha_t} \mathbf{x}_0 + \frac{\sqrt{\alpha_t}(1 - \bar\alpha_{t-1})}{1 - \bar\alpha_t} \mathbf{x}_t$$
-Based on the expression above, we see that the variance $\Sigma'$ depends only on the time step. The mean $\mu'$, however, requires knowledge of $\mathbf{x}_0$. Since we only observe $\mathbf{x}_t$ but not $\mathbf{x}_0$, we need to figure out a way to approximate $\mathbf{x}_0$. To do this, we train a neural network $\bm{\epsilon}_\theta(\mathbf{x}_t, t)$ (typically an MLP or U-Net) to output $\hat{\bm{\epsilon}}$: a prediction of the noise $\bm{\epsilon}$ added during the forward process. Then, using the forward process formula:
+Based on the expression above, we see that the variance $\Sigma'$ depends only on the time step. The mean $\mu'$, however, requires knowledge of $\mathbf{x}_0$. Since we only observe $\mathbf{x}_t$ but not $\mathbf{x}_0$, we need to figure out a way to approximate $\mathbf{x}_0$. To do this, we train a neural network $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)$ (typically an MLP or U-Net) to output $\hat{\boldsymbol{\epsilon}}$: a prediction of the noise $\boldsymbol{\epsilon}$ added during the forward process. Then, using the forward process formula:
 $$
-\mathbf{x}_t = \sqrt{\bar\alpha_t} \mathbf{x}_0 + \sqrt{1 - \bar\alpha_t} \bm{\epsilon},
+\mathbf{x}_t = \sqrt{\bar\alpha_t} \mathbf{x}_0 + \sqrt{1 - \bar\alpha_t} \boldsymbol{\epsilon},
 $$
 we can rearrange and estimate
 $$
-\hat{\mathbf{x}}_0 = \frac{1}{\sqrt{\bar\alpha_t}} \left( \mathbf{x}_t - \sqrt{1 - \bar\alpha_t} \cdot \hat{\bm{\epsilon}} \right)
+\hat{\mathbf{x}}_0 = \frac{1}{\sqrt{\bar\alpha_t}} \left( \mathbf{x}_t - \sqrt{1 - \bar\alpha_t} \cdot \hat{\boldsymbol{\epsilon}} \right)
 $$
 Plug $\hat{\mathbf{x}}_0$ into the formula of $\mu'$ to get an approximated mean denoted by $\mu_\theta(\mathbf{x}_t, t)$ (detailed calculation see the appendix)
 $$
 \mu_\theta(\mathbf{x}_t, t) =
-\frac{1}{\sqrt{\alpha_t}} \left(\mathbf{x}_t - \frac{1 - \alpha_t}{\sqrt{1 - \bar\alpha_t}} \cdot \hat{\bm{\epsilon}} \right)
+\frac{1}{\sqrt{\alpha_t}} \left(\mathbf{x}_t - \frac{1 - \alpha_t}{\sqrt{1 - \bar\alpha_t}} \cdot \hat{\boldsymbol{\epsilon}} \right)
 $$
 The intuition of the above expression is: by removing the noise component from $\mathbf{x}_t$, we obtain a direction pointing toward $\mathbf{x}_{t-1}$.</p>
-<p>That is, predicting the noise $\bm{\epsilon}$ is sufficient to approximate the mean of the reverse distribution. This is one of the most elegant and fundamental tricks in DDPM. However, since the predicted mean is computed via an estimate $\hat{\mathbf{x}}_0$, the resulting distribution is no longer the true reverse process $q(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$, but rather an approximation. We denote this by $p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$. And it's a Gaussian distribution such that
+<p>That is, predicting the noise $\boldsymbol{\epsilon}$ is sufficient to approximate the mean of the reverse distribution. This is one of the most elegant and fundamental tricks in DDPM. However, since the predicted mean is computed via an estimate $\hat{\mathbf{x}}_0$, the resulting distribution is no longer the true reverse process $q(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$, but rather an approximation. We denote this by $p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$. And it's a Gaussian distribution such that
 $$
 p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t) = \mathcal{N}\left(\mathbf{x}_{t-1}; \mu_\theta(\mathbf{x}_t, t), \Sigma'\right)
 $$</p>
-<p>The neural network $\bm{\epsilon}_\theta(\mathbf{x}_t,t)$ takes input: a noisy image $\mathbf{x}_t$, a time step $t$; then outputs predicted noise $\hat{\bm{\epsilon}}$ that was used to create $\mathbf{x}_t$ from $\mathbf{x}_0$ in the forward process. The training target is the actual noise $\bm{\epsilon}$ we sampled during forward diffusion. The loss is
-$$\mathcal{L} = \mathbb{E}_{\mathbf{x}_0, \bm{\epsilon}, t} \left[ \| \bm{\epsilon} - \hat{\bm{\epsilon}} \|^2 \right]$$
+<p>The neural network $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t,t)$ takes input: a noisy image $\mathbf{x}_t$, a time step $t$; then outputs predicted noise $\hat{\boldsymbol{\epsilon}}$ that was used to create $\mathbf{x}_t$ from $\mathbf{x}_0$ in the forward process. The training target is the actual noise $\boldsymbol{\epsilon}$ we sampled during forward diffusion. The loss is
+$$\mathcal{L} = \mathbb{E}_{\mathbf{x}_0, \boldsymbol{\epsilon}, t} \left[ \| \boldsymbol{\epsilon} - \hat{\boldsymbol{\epsilon}} \|^2 \right]$$
 In the <em>"Math Behinde the Training Objective of DDPM"</em> section we will see that DDPM’s L2 loss is not an arbitrary choice. We’ll introduce the variational objective used in DDPM and show that the L2 loss emerges naturally from it under a Gaussian assumption - specifically, as the negative log-likelihood of a Gaussian with fixed variance.</p>
 <h3 id="Generation-Process-of-DDPM:-Iterative-Denoising">Generation Process of DDPM: Iterative Denoising<a class="anchor-link" href="#Generation-Process-of-DDPM:-Iterative-Denoising">¶</a></h3><p>Starting from $\mathbf{x}_T\sim\mathcal{N}(0,I)$, repeatedly apply $p_\theta(\mathbf{x}_{t-1}\mid \mathbf{x}_t)$ to obtain a sample $\mathbf{x}_{t-1}$, eventually obtaining a clean sample $\mathbf{x}_0$. Each step uses the predicted noise to compute a denoised mean, then samples from a Gaussian centered at that mean.</p>
 <ul>
@@ -7648,12 +7648,12 @@ $$\mathbf{x}_T \sim \mathcal{N}(0, I)$$</p>
 </li>
 <li><p>Iteratively sample: for $t = T, T-1, \dots, 1$,
 $$
-\mu_\theta(\mathbf{x}_t, t) = \frac{1}{\sqrt{\alpha_t}} \left( \mathbf{x}_t - \frac{1- \alpha_t}{\sqrt{1 - \bar{\alpha}_t}} \cdot \bm{\epsilon}_\theta(\mathbf{x}_t, t) \right)
+\mu_\theta(\mathbf{x}_t, t) = \frac{1}{\sqrt{\alpha_t}} \left( \mathbf{x}_t - \frac{1- \alpha_t}{\sqrt{1 - \bar{\alpha}_t}} \cdot \boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t) \right)
 $$
 $$
 \mathbf{x}_{t-1} \sim \mathcal{N}\left( \mu_\theta(\mathbf{x}_t, t), \sigma_t^2 I \right)
 $$
-where $\sigma_t$ only depends on the timestep $t$, and $\bm{\epsilon}_\theta(\mathbf{x}_t, t)$ is the predicted noise.</p>
+where $\sigma_t$ only depends on the timestep $t$, and $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)$ is the predicted noise.</p>
 </li>
 </ul>
 </div>
