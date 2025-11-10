@@ -3,7 +3,7 @@
 <html lang="en">
 <head><meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>1-BackpropagationAnswer</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<title>LatentDiffusionModels</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 <style type="text/css">
     pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -7511,193 +7511,377 @@ a.anchor-link {
 <!-- End of mermaid configuration --></head>
 <body class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
 <main>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=816a92ea">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=42fee962">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h1 id="Backpropagation-Derivation-Answer">Backpropagation Derivation Answer<a class="anchor-link" href="#Backpropagation-Derivation-Answer">¶</a></h1><h3 id="1.-Loss-Functions">1. Loss Functions<a class="anchor-link" href="#1.-Loss-Functions">¶</a></h3><ul>
-<li><p><strong>Part A – Regression (MSE)</strong></p>
-<p>$$
-L = \frac{1}{2}(y - \hat{y})^2
-$$</p>
+<div align="center" style="font-size:40px;">Latent Diffusion Models (LDMs)</div>
+<p>Latent Diffusion Models (LDMs) extend DDPMs by performing diffusion in a compressed latent space instead of pixel space. A VAE encodes images into latents, the diffusion process runs there efficiently, and the results are decoded back to images. This greatly reduces computation and enables flexible conditioning, such as text or image guidance (High-Resolution Image Synthesis with Latent Diffusion Models, CVPR 2022).</p>
+<p>Takeaway:</p>
+<ol>
+<li>What are the three main components of the LDM architecture?</li>
+<li>How to decide the scaling parameter in VAE latent space scaling?</li>
+<li>If there is no conditioning, is the U-Net structure of LDM the same as ordinary DDPM?</li>
+<li>In conditioning, why is the traditional concatenation method unable to effectively handle multi-modal inputs?</li>
+<li>What is the Q, K, V in cross-attention of conditioning module?</li>
+<li>The training and generation process of the diffusion model have the same logic between LDM and ordinary DDPM?</li>
+</ol>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=2f871ede">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----LDM-Architecture-(%22The-Standard-Trio%22-of-LDMs)">--- LDM Architecture ("The Standard Trio" of LDMs)<a class="anchor-link" href="#----LDM-Architecture-(%22The-Standard-Trio%22-of-LDMs)">¶</a></h2><p>The core idea of LDM is to first train a perceptual compression VAE, then perform diffusion in the latent space, allowing for very flexible conditioning. DDPM denoises step-by-step in pixel space $x\in\mathbb{R}^{H\times W\times 3}$, where $H$ and $W$ are the image height and width, and $3$ denotes the RGB color channels. LDM first uses a perceptually strong compression autoencoder (VAE) to encode images into a low-dimensional latent $z\in\mathbb{R}^{\frac H f\times \frac W f\times C}$ (commonly $f=8, C=4$, for $C$ in the latent space is no longer simple RGB color channels, but rather high-level feature channels learned by the VAE), and then performs diffusion in the latent space. For example, with $f=8, C=4$, the dimensionality is reduced by approximately $\approx \frac{3HW}{C\cdot (H/f)(W/f)}=\frac{3}{C/ f^2}$, about a 48× reduction. This significantly speeds up training/sampling and reduces memory usage, while still maintaining high fidelity.</p>
+<h3 id="1.-Perceptual-Compression-Autoencoder-(VAE)">1. Perceptual Compression Autoencoder (VAE)<a class="anchor-link" href="#1.-Perceptual-Compression-Autoencoder-(VAE)">¶</a></h3><p>The VAE in LDM has the same structure as the ordinary VAE.</p>
+<ul>
+<li><p><strong>Encoder $E_\phi$: $\bm x\mapsto \bm z$.</strong> The goal is to preserve perceptually important semantic details while sacrificing redundant pixel information.</p>
 </li>
-<li><p><strong>Part B – Classification (Binary Cross-Entropy)</strong></p>
-<p>$$
-L = -\Big[y \log(\hat{y}) + (1-y)\log(1-\hat{y})\Big]
-$$</p>
+<li><p><strong>Decoder $D_\phi$: $\bm z\mapsto \hat{\bm x}$.</strong> The final image is reconstructed by the decoder, which restores the details.</p>
 </li>
-</ul>
-<h3 id="2.-Backward-Pass-(Gradients)">2. Backward Pass (Gradients)<a class="anchor-link" href="#2.-Backward-Pass-(Gradients)">¶</a></h3><p>Let $\mathbf{1}_{(\cdot)}$ denote the indicator function. The derivative of ReLU can be expressed as</p>
-<p>$$
-\text{ReLU}'(z)=\mathbf{1}_{z&gt;0}.
-$$</p>
-<p>Whether we use MSE + identity mapping (regression) or Sigmoid + BCE (classification), the output-layer error term can be unified as
+<li><p><strong>Loss:</strong> the reconstruction loss can be $L_1$ or $L_2$. In practice, $L_1$ is more commonly used and generally yields better results. $L_2$ penalizes large errors too heavily and tends to average out textures, which can lead to blurriness; $L_1$ better preserves sharp edges and structures.
 $$
-\delta_{(3)} \;=\; \frac{\partial L}{\partial z_{(3)}} \;=\; \hat y - y.
-$$</p>
-<p>$$
-\boxed{
-\begin{aligned}
-&amp;\textbf{For regression:}\\
-&amp;\quad \hat y=z_{(3)},\quad L=\tfrac12(\hat y-y)^2=\tfrac12(z_{(3)}-y)^2\\
-&amp;\quad \text{Differentiate w.r.t. }z_{(3)}\text{:}\\
-&amp;\quad \frac{\partial L}{\partial z_{(3)}}=\frac{\partial}{\partial z_{(3)}}\tfrac12(z_{(3)}-y)^2
-=(z_{(3)}-y)=\hat y-y.\\[1em]
-&amp;\textbf{For binary classification:}\\
-&amp;\quad \frac{\partial L}{\partial \hat y}
-= -\left(\frac{y}{\hat y}-\frac{1-y}{1-\hat y}\right)
-= \frac{\hat y - y}{\hat y(1-\hat y)}.\\
-&amp;\quad \text{Directly by quotient rule }\frac{\partial \hat y}{\partial z_{(3)}}=\sigma'(z_{(3)})=\hat y(1-\hat y),\\
-&amp;\quad \text{multiplying gives}\\
-&amp;\quad \frac{\partial L}{\partial z_{(3)}}
-=\frac{\partial L}{\partial \hat y}\cdot\frac{\partial \hat y}{\partial z_{(3)}}
-=\frac{\hat y - y}{\hat y(1-\hat y)}\cdot \hat y(1-\hat y)
-=\hat y-y.
-\end{aligned}
-}
-$$</p>
-<h4 id="Output-layer-($W_3%5Cin%5Cmathbb%7BR%7D%5E%7B1%5Ctimes-2%7D,%5C,-b_3%5Cin%5Cmathbb%7BR%7D$)">Output layer ($W_3\in\mathbb{R}^{1\times 2},\, b_3\in\mathbb{R}$)<a class="anchor-link" href="#Output-layer-($W_3%5Cin%5Cmathbb%7BR%7D%5E%7B1%5Ctimes-2%7D,%5C,-b_3%5Cin%5Cmathbb%7BR%7D$)">¶</a></h4><p>$$
-\frac{\partial L}{\partial W_3}=\delta_{(3)}\,\mathbf{a}_{(2)}^{\!\top},\qquad
-\frac{\partial L}{\partial b_3}=\delta_{(3)}.
-$$</p>
-<h4 id="Hidden-layer-2-(ReLU)">Hidden layer 2 (ReLU)<a class="anchor-link" href="#Hidden-layer-2-(ReLU)">¶</a></h4><p>$$
-\boldsymbol{\delta}_{(2)} 
-= \frac{\partial L}{\partial \mathbf{z}_{(2)}}
-= \frac{\partial L}{\partial z_{(3)}} \cdot \frac{\partial z_{(3)}}{\partial \mathbf{a}_{(2)}} \cdot \frac{\partial \mathbf{a}_{(2)}}{\partial \mathbf{z}_{(2)}}
-= \big(W_3^{\!\top}\delta_{(3)}\big)\;\odot\;\mathbf{1}_{\mathbf{z}_{(2)}&gt;0},
-$$
-$$
-\frac{\partial L}{\partial W_2}=\boldsymbol{\delta}_{(2)}\,\mathbf{a}_{(1)}^{\!\top},\qquad
-\frac{\partial L}{\partial \mathbf{b}_2}=\boldsymbol{\delta}_{(2)}.
-$$</p>
-<h4 id="Hidden-layer-1-(ReLU)">Hidden layer 1 (ReLU)<a class="anchor-link" href="#Hidden-layer-1-(ReLU)">¶</a></h4><p>$$
-\boldsymbol{\delta}_{(1)} 
-= \frac{\partial L}{\partial \mathbf{z}_{(1)}} 
-= \frac{\partial L}{\partial \mathbf{z}_{(2)}} 
-\cdot \frac{\partial \mathbf{z}_{(2)}}{\partial \mathbf{a}_{(1)}} 
-\cdot \frac{\partial \mathbf{a}_{(1)}}{\partial \mathbf{z}_{(1)}}
-= \big(W_2^{\!\top}\boldsymbol{\delta}_{(2)}\big)\;\odot\;\mathbf{1}_{\mathbf{z}_{(1)}&gt;0},
-$$
-$$
-\frac{\partial L}{\partial W_1}=\boldsymbol{\delta}_{(1)}\,\mathbf{x}^{\!\top},\qquad
-\frac{\partial L}{\partial \mathbf{b}_1}=\boldsymbol{\delta}_{(1)}.
+\mathcal{L}_{\text{VAE}}=\lambda_{\text{recon}}\text{Recon}(\bm x, \hat{\bm x})+\beta\cdot {\text{KL}}\left(q_\phi(\bm z\mid \bm x)\|\mathcal{N}(0,I)\right)
 $$</p>
 <blockquote>
-<p>Note: $\odot$ denotes elementwise multiplication (Hadamard product).</p>
+<p>In addition to the standard VAE loss, in the LDM paper (Zhang et al., CVPR 2018), the authors found that using only pixel-level L1/L2 reconstruction loss caused the generated images to be blurry and lack perceptual quality. Therefore, they added LPIPS (Learned Perceptual Image Patch Similarity) as a perceptual loss term.
+$$
+\mathcal{L}_{\text{VAE}}=\lambda_{\text{perc}}\text{LPIPS}(\bm x,\hat{\bm x}) + \lambda_{\text{recon}}\text{Recon}(\bm x, \hat{\bm x})+\beta\cdot {\text{KL}}\left(q_\phi(\bm z\mid \bm x)\|\mathcal{N}(0,I)\right)
+$$
+LPIPS is a deep network-based perceptual similarity metric. Instead of directly comparing pixel differences, it passes both images through a pre-trained vision network and compares their feature differences at multiple layers. This yields a difference score more consistent with human visual perception. For example, given two RGB images $x$ and $\hat{x}$ of the same size (e.g., 256×256×3) as input, it outputs a single scalar: the LPIPS value, which quantifies the "perceptual distance" between the two images—the smaller the value, the more similar the images are perceived.</p>
 </blockquote>
+</li>
+<li><p><strong>Latent Scaling (LDM’s special trick): $\bm{z} \mapsto c \bm{z}$.</strong> For LDMs, many implementations scale the VAE latent $\bm z$ by a constant $c$ to standardize the variance so that $\mathrm{Var}_{\text{dataset}}(\bm z) \approx \mathrm{Var}_{\bm x_0 \sim q(\bm x_0)}(\bm x_0)\approx I$.</p>
+<blockquote>
+<p>In latent space diffusion, during training, we sample $\bm z$ from the Gaussian distribution output by the encoder, $\bm z \sim \mathcal{N}(\bm\mu(\bm x), \bm \sigma(\bm x)^2)$ ($\bm \sigma$ produces only the diagonal since <strong>VAE assumes independence</strong>), and then input $\bm z$ into the forward diffusion process. The distribution of $\bm z$ across samples is the true $\bm x_0$ distribution $q(\bm x_0)$. And the global variance of all latent samples $\mathrm{Var}_{\text{dataset}}(\bm z)$ is a close approximation of the population variance $\mathrm{Var}_{\bm x_0\sim q(\bm x_0)}(\bm x_0)$.</p>
+</blockquote>
+<blockquote>
+<p>Similar tricks in other diffusion models to make $\mathrm{Var}_{\bm x_0 \sim q(\bm x_0)}(\bm x_0)\approx1$: for pixel-space DDPM, the data $\bm{x}_0 \in \mathbb{R}^D$ are image pixels (originally in $[0,255]^D$), which are normalized to $[-1,1]^D$ or standardized to zero-mean/unit-std so that $\mathrm{Var}(\bm{x}_0)\approx I_D$ (i.e., each pixel dimension has unit variance).</p>
+</blockquote>
+<ul>
+<li><p><strong>Distinction: $\text{Var}_{\text{dataset}}(\bm z)\approx I$ is not gauranteed by $\bm\sigma(\bm x) \approx \bm 1$</strong></p>
+<p>In an ideal case, if the output of the encoder is fixed - e.g. always output $\bm\mu(\bm x) = \bm 0, \bm\sigma(\bm x) = \bm 1$, then the aggregated latent distribution satisfies $\text{Var}_{\text{dataset}}(\bm z)\approx I$. But in reality, the KL term in the VAE loss only encourages $\bm\mu(\bm x) \approx \bm 0, \bm\sigma(\bm x) \approx \bm 1$, but does not enforce it exactly (unless the KL weight → ∞). We can use the reparameterization formula $\bm z = \bm\mu(\bm x) + \bm\sigma(\bm x)\bm\varepsilon, \bm\varepsilon\sim\mathcal{N}(\bm 0, I)$ to compute $\text{Var}_{\text{dataset}}(\bm z)$ and see how far it's off from $I$:
+$$
+\begin{align}
+\mathrm{Var}_{\text{dataset}}(\bm z)
+&amp;= \mathbb{E}\big[(\bm z-\mathbb{E}[\bm z])(\bm z-\mathbb{E}[\bm z])^\top\big] \nonumber\newline
+&amp;= \mathbb{E}\big[\bm z\bm z^\top\big] - \mathbb{E}[\bm z]\mathbb{E}[\bm z]^\top \nonumber\newline
+&amp;= \mathbb{E}\Big[\bm\mu(\bm x)\bm\mu(\bm x)^\top + \mathrm{diag}\big(\bm\sigma(\bm x)^2\big)\Big] - \big(\mathbb{E}[\bm\mu(\bm x)]\big)\big(\mathbb{E}[\bm\mu(\bm x)]\big)^\top \nonumber\newline
+&amp;= \underbrace{\mathrm{Var}(\bm\mu(\bm x))}_{\text{mean spread}} + \underbrace{\mathbb{E}\big[\mathrm{diag}(\bm\sigma(\bm x)^2)\big]}_{\text{expected variance}} \nonumber
+\end{align}
+$$
+The KL term pushes each latent dimension toward $\mathbb{E}[\sigma_i(x)^2]\approx1$ and $\mathbb{E}[\mu_i(x)]\approx0$, but this does <em>not</em> guarantee $\mathrm{Var}(\bm\mu(\bm x))\approx \mathbf{0}$. If the encoder's mean $\mu(x)$ vary widely across samples, for example, in a one-dimensional latent case where half the samples have $\mu=+3$ and the other half have $\mu=-3$, then $\text{Var}(\mu(x))=9$ and $\text{Var}_{\text{dataset}}(z) = 10$. Thus, even with $\bm\sigma(x)\approx \bm 1$, the aggregated latent variance can be significantly larger than $I$ if $\bm\mu(\bm x)$ is dispersed across the dataset.</p>
+</li>
+<li><p><strong>Why do we want $\mathrm{Var}_{\bm x_0\sim q(\bm x_0)}(\bm x_0) \approx I$?</strong></p>
+<p>Strictly speaking, there is no math derivation in LDM requires $\mathrm{Var}_{\bm x_0\sim q(\bm x_0)}(\bm x_0) \approx I$. We need it for an engineering reason - to make sure the training is stable. It guarantees the signal $\bm x_t$ is of the same scale as noise $\bm\varepsilon$. How do we quantify the scale? Why the variance $\approx I$ leads to a matching scale? Recall the one-step transition formula:
+$$
+\mathbf{x_t} = \sqrt{\bar\alpha_t} \mathbf{x_0} + \sqrt{1-\bar\alpha_t} \bm{\varepsilon}, \quad \bm{\varepsilon} \sim \mathcal N(\bm{0}, I).
+$$
+Let's look at each dimension. If a <strong>per-dimension variance</strong> is $\mathrm{Var}(x_{0i}) = \hat\sigma_i^2$, define the <strong>per-dimension signal-to-noise ratio (SNR)</strong>. Notice that under KL with standard Gaussian, each $\mathbb{E}(x_{0i}) \sim \mathcal O(0)$ and $\mathrm{Var}(x_{0i}) \sim \mathcal O(1)$, so the $\mathbb{E}(x_{0i})$ term won't affect the scale.
+$$\mathrm{SNR}_t^{(i)} = \frac{\mathbb{E}[\|\sqrt{\bar\alpha_t}x_{0i}\|^2]}{\mathbb{E}[\|\sqrt{1-\bar\alpha_t}\varepsilon_i\|^2]}
+= \frac{\mathrm{Var}(\sqrt{\bar\alpha_t}x_{0i}) + \|\mathbb{E}(x_{0i})\|^2}{\mathrm{Var}(\sqrt{1-\bar\alpha_t}\varepsilon_i)}
+\approx \frac{\mathrm{Var}(\sqrt{\bar\alpha_t}x_{0i})}{\mathrm{Var}(\sqrt{1-\bar\alpha_t}\varepsilon_i)} = \frac{\bar\alpha_t \hat\sigma_i^2}{1-\bar\alpha_t}$$
+The noise term $\bm\varepsilon \sim \mathcal N(\bm 0, I)$ always makes the noise scale $1-\bar\alpha_t$ at each dimension. If the scale of $x_{0i}$ is very different from this, the noise and signal terms will be mismatched in scale. For example, if a dimension has variance $0.01$ - that is $\hat\sigma_i^2 = 0.01$ - the noise term dominates → the model can barely see the original signal structure. If a dimension has variance $50$ - that is $\hat\sigma_i^2 = 50$ - then in the early steps, $x_{ti}$ is dominated by the signal and the noise is too small → the model can hardly see the noise; later on, after $\bar\alpha_t &lt; 1/(1+\hat\sigma_i^2)=1/51$ (the point $\mathrm{SNR}_t^{(i)}=1$), $\bar{\alpha}_t$ is already very small, so even a few more iterations cause an exponential drop in $\bar{\alpha}_t \hat\sigma_i^2$ (the signal variance term), while the noise term stays nearly constant—this makes the SNR collapse abruptly at the end.</p>
+</li>
+<li><p><strong>Why not full whitening?</strong></p>
+<p>Ideally, if we want $\bm z \sim \mathcal N(\bm 0, I)$, a standard trick to use is full whitening. Let's recall what full whitening is. Flatten the latent of each sample as $z^{(n)}\in\mathbb{R}^{D}$, where $D=C\times H\times W$. Stack all samples into a data matrix $Z\in\mathbb{R}^{N\times D}$, where the $n$-th row is $z^{(n)}$. The empirical mean is:
+$$
+\hat{\bm\mu} \in \mathbb{R}^{D}, \quad \hat{\bm\mu} = \frac{1}{N}\sum_{n=1}^N \bm z^{(n)}.
+$$
+Center the data:
+$$
+\tilde Z = Z - \mathbf{1}_N \hat{\bm\mu}^\top \in \mathbb{R}^{N\times D}.
+$$
+Empirical covariance matrix (this is the standard unbiased estimate using $N-1$; using $N$ is also common in engineering practice):
+$$
+\hat\Sigma \in \mathbb{R}^{D\times D},\quad
+\hat\Sigma = \frac{1}{N-1}\tilde Z^\top \tilde Z.
+$$
+Full whitening
+$$\bm z' = \hat\Sigma^{-\frac{1}{2}}(\bm z - \bm\mu).$$
+In this way, it's easy to compute that $\text{Var}(\bm z') = I$. Two common numerical methods to compute $\Sigma^{-\frac{1}{2}}$ are ZCA whitening and PCA whitening. For example, in ZCA whitening, perform SVD to get: $\hat\Sigma = U \Lambda U^\top$, where $\Lambda = \mathrm{diag}(\lambda_1, \dots, \lambda_D)$ and $U^\top U = I$. Add a small numerical stability term ($\varepsilon &gt; 0$) to prevent singularities or very small eigenvaluesand get: $W_{\text{ZCA}} = U (\Lambda + \varepsilon I)^{-1/2} U^\top$. Then, the whitening transformation for any sample vector $\bm z$ is: $\bm z' = W_{\text{ZCA}} (\bm z - \hat{\bm\mu})$.</p>
+<p>But full whitening is not a good choice in LDM due to the following reasons:</p>
+<ul>
+<li><strong>Computation Cost:</strong> In terms of memory, the covariance matrix $\hat\Sigma$ is $D\times D$. For example, if $D=4\times64\times64=16384$, the covariance has $2.68\times10^8$ elements, which is over 1.0 GB in float32 just to store the covariance—very memory intensive. In terms of computation: eigen-decomposition or matrix square root has complexity $\mathcal{O}(D^3)$, which is basically infeasible for tens of thousands of dimensions.</li>
+<li><strong>Subtracting the mean breaks content:</strong> The decoder is not invariant to “adding or subtracting a constant”, and this operation pushes it into an input region that it has never seen or learned during training. Intuitively, the latent feature map can be viewed as a set of semantic switches or style knobs: positive values may indicate warmer, brighter, or smoother appearances, while negative values produce the opposite effects. The dataset mean $\bm\mu$ encodes the <strong>content baseline</strong>, and the decoder has learned to operate around this $\bm\mu$. <strong>Subtracting the mean ≈ resetting baseline</strong>. At this point the content itself is changed, and the decoder is asked to reconstruct it using its old experience. However, it has never learned how to recover the original style from resetted input, so the output easily becomes discolored, grayish, or shows strange artifacts and texture collapse. <strong>Scaling the variance ≈ adjusting around baseline</strong>. In most cases, the content remains consistent, only appearing “stronger or weaker.”</li>
+<li>In VAE, the latent space is inherently assumed to be independent Gaussian. The inter-dimensional correlations are weak, making it unnecessary to decorrelate (whiten) the dimensions. Full whitening is not only costly but also provides little actual modeling benefit. And as we will see, from the perspective of signal-to-noise ratio, what matters is the sum of variance in each dimension (the trace), not the full covariance structure.</li>
+</ul>
+</li>
+<li><p><strong>Why do global scaling but not per-dimension scaling?</strong></p>
+<p>We've seen that full whitening is not recommended. What we should do to keep the SNR reasonable? Let's compute SNR closed form in vector version to get a direction. If $\mathrm{Var}(\bm{x_0}) = \Sigma$, then signal variance $\mathrm{Var}(\sqrt{\bar\alpha_t}\bm{x_0}) = \bar\alpha_t \Sigma$; noise variance $\mathrm{Var}(\sqrt{1-\bar\alpha_t}\bm{\varepsilon}) = (1 - \bar\alpha_t)I$. Define the signal-to-noise ratio (SNR), where $d$ is the dimension of latent space. Notice that $\|\mathbb{E}(\bm x_0)\|^2 \ll \mathrm{tr}(\Sigma)$ since $\|\mathbb{E}(\bm x_0)\|^2 = \sum_{i=1}^d [\mathbb{E}(x_{0i})]^2$ and each $\mathbb{E}(x_{0i}) \sim \mathcal O(0)$; but $\mathrm{tr}(\Sigma) = \sum_{i=1}^d \mathrm{Var}(x_{0i})$ and each $\mathrm{Var}(x_{0i}) \sim \mathcal O(1)$.
+$$
+\mathrm{SNR}_t 
+= \frac{\mathbb{E}[\|\sqrt{\bar\alpha_t}\mathbf{x}_0\|^2]}{\mathbb{E}[\|\sqrt{1-\bar\alpha_t}\boldsymbol\varepsilon\|^2]}
+= \frac{\mathrm{tr}\big(\mathrm{Var}(\sqrt{\bar\alpha_t}\mathbf{x}_0)\big) + \|\mathbb{E}(\bm x_0)\|^2}{\mathrm{tr}\big(\mathrm{Var}(\sqrt{1-\bar\alpha_t}\boldsymbol\varepsilon)\big)}
+\approx \frac{\bar\alpha_t \mathrm{tr}(\Sigma)}{(1-\bar\alpha_t)d}.
+$$</p>
+<blockquote>
+<p><strong>Trick</strong>: $\mathrm{tr}(\Sigma)$ is exactly the <strong>sum of the variances along each dimension</strong>, so it can be viewed as the dataset’s "total energy". That is, $\mathrm{tr}(\mathrm{Var}(\mathbf{x})) = \sum_{i=1}^d \mathrm{Var}(x_i) = \mathbb{E}\|\mathbf{x}\|^2 - \|\mathbb{E}(\mathbf{x})\|^2$. And in the zero-mean case $\mathrm{tr}(\Sigma)=\mathbb{E}\|\mathbf{x}\|^2$.
+Elemetn-wise, since trace is the sum of diagonal elements:
+$$\mathrm{tr}(\mathrm{Var}(\mathbf{x})) = \sum_{i=1}^d \Sigma_{ii} = \sum_{i=1}^d \mathrm{Var}(x_i) = \sum_{i=1}^d \Big(\mathbb{E}[x_i^2]-[\mathbb{E}x_i]^2\Big) = \mathbb{E}\|\mathbf{x}\|^2 - \|\mathbb{E}(\mathbf{x})\|^2$$
+Vector-wise, use $\mathrm{tr}(\mathbf{a}\mathbf{a}^\top)=\mathbf{a}^\top\mathbf{a}=\|\mathbf{a}\|^2$ and the linearity of trace and expectation. Let $\mathbb{E}(\mathbf{x})=\bm\mu$,
+$$\mathrm{tr}(\mathrm{Var}(\mathbf{x})) = \mathrm{tr}\Big(\mathbb{E}\big[(\mathbf{x}-\boldsymbol\mu)(\mathbf{x}-\boldsymbol\mu)^\top\big]\Big) = \mathrm{tr}\Big(\mathbb{E}[\mathbf{x}\mathbf{x}^\top]-\boldsymbol\mu\boldsymbol\mu^\top\Big) = \mathbb{E}\big[\mathrm{tr}(\mathbf{x}\mathbf{x}^\top)\big]-\mathrm{tr}(\boldsymbol\mu\boldsymbol\mu^\top) = \mathbb{E}\|\mathbf{x}\|^2 - \|\mathbb{E}(\mathbf{x})\|^2$$</p>
+</blockquote>
+<p>The SNR expression shows that inter-dimensional covariance does not contribute to the SNR (VAE also encourages such independence among dimensions). As long as $\mathrm{tr}(\Sigma) = \sum_{i=1}^d \mathrm{Var}(x_{0i}) \approx d$, the overall scale of the SNR is correct, and the model can learn a reasonable noise schedule. To achieve this, we have <strong>two ways to scale $\bm x_0$</strong>:</p>
+<ol>
+<li><p>Global scalar scaling:
+$$
+ \bm x_0' = c \cdot \bm x_0,\quad \text{where } c = \sqrt{\frac{d}{\mathrm{tr}(\Sigma)}} = \sqrt{\frac{d}{\sum_{i=1}^d \mathrm{Var}(x_{0i})}}.
+ $$
+All dimensions are multiplied by the same constant.</p>
+</li>
+<li><p>Per-dimension scaling:
+$$
+ x_{0i}' = \frac{x_{0i}}{\sqrt{\mathrm{Var}(x_{0i})}}.
+ $$
+Each dimension is individually normalized to unit variance.</p>
+</li>
+</ol>
+<p>Why we avoid per-dimension scaling?</p>
+<p><strong>The differences in variance across dimensions are actually a natural result of information distribution</strong>, reflecting the encoder's judgment of which features are more important during compression. Some dimensions are more important (e.g., capturing semantics, object shapes, color styles, etc.), so the encoder will automatically assign them larger variances; some dimensions contain little information (maybe just weak noise), so their variances are smaller. Dimensions with larger variance represent more stable and important semantic directions, so the effect of noise on these dimensions should naturally be smaller.</p>
+<p>If we normalize each dimension individually, we are forcibly "whitening" the space, which essentially erases the signal strength of the feature directions learned by the encoder. This will: change the geometric shape of the latent distribution; disrupt the internal semantic organization of the model; and cause the decoder to receive latents that no longer match the statistical distribution it saw during training, thus degrading generation quality.</p>
+<p>Therefore, we only care about the overall variance, and do not aim to whiten all dimensions: this is a conscious design choice, not an oversight.</p>
+</li>
+<li><p><strong>How to compute the scalar?</strong></p>
+<p>It's straightforward to compute $c$ given
+$$
+c = \sqrt{\frac{d}{\mathrm{tr}(\Sigma)}} = \sqrt{\frac{D}{\sum_{i=1}^D \mathrm{Var}(z_i)}} = \sqrt{\frac{1}{\frac{1}{D}\sum_{i=1}^D \mathrm{Var}(z_i)}}.
+$$
+Let latents $\mathbf{z}_1, ..., \mathbf{z}_N$ be flattened to $Z \in \mathbb{R}^{N\times D}$ (where D = C * H * W). Denote the mean of each dimension as: $\mu_i = \frac{1}{N}\sum_{n=1}^N Z_{n,i}$ (forming a vector $\boldsymbol\mu \in \mathbb{R}^D$).
+$$
+\mathrm{Var}(z_i) = \frac{1}{N} \sum_{n=1}^N (Z_{n,i}-\mu_i)^2
+\quad \Rightarrow \quad 
+S_1 = \frac{1}{D}\sum_{i=1}^D \mathrm{Var}(z_i)
+= \frac1{DN}\sum_{i=1}^D\sum_{n=1}^N (Z_{n,i}-\mu_i)^2
+= \frac1{DN}\sum_{n=1}^N \|\mathbf{z}_i - \boldsymbol\mu\|^2
+\quad \Rightarrow \quad 
+c = \sqrt{\frac{1}{S_1}}
+$$
+However, practically, there is a slightly different way widely used to compute $c$:
+Let 全局均值 $\bar z=\frac1{ND}\sum_{n,i} Z_{n,i}=\frac1D\sum_{i=1}^D \mu_i$, then
+$$
+S_2 = \frac1{DN}\sum_{i=1}^D\sum_{n=1}^N (Z_{n,i}-\bar z)^2
+= \frac1{DN}\sum_{n=1}^N \|\mathbf{z}_i - \bar z \bm 1\|^2
+\quad \Rightarrow \quad 
+c = \sqrt{\frac{1}{S_2}}
+$$</p>
+<blockquote>
+<p>Expand $S_1 = \frac1{DN}\Big(\sum_{n,i} Z_{n,i}^2 - N\sum_i \mu_i^2\Big)$ and $S_2 = \frac1{DN}\Big(\sum_{n,i} Z_{n,i}^2 - ND\bar z^2\Big)$, we can get
+$$
+S_1 - S_2 = \frac{ND\bar z^2 - N\sum_i \mu_i^2}{ND} = \frac{D\bar z^2 - \sum_i \mu_i^2}{D} = -\Big(\frac1D\sum_i \mu_i^2 - \bar z^2\Big) = - \frac1D\sum_{i=1}^D (\mu_i-\bar z)^2 = -\mathrm{Var}(\mu_i)
+$$
+In statistics, we call <strong>$S_1$ the average within-group variance</strong>, and <strong>$S_2$ the total variance</strong>. The quantity $S_2 - S_1$ is known as the <strong>between-group variance</strong>. Under VAE conditions, $\mu_i \approx 0$ and the means are close to each other, so $S_2 \approx S_1$. However, since the means of each dimension are not exactly the same, $S_2$ will always be slightly larger.</p>
+</blockquote>
+<p><strong>Both $S_1$ and $S_2$ can be used in practice.</strong> The relative proportions between dimensions remain unchanged and <strong>the scalar value $c$ does not affect the image content</strong>. We can actually tune $c$ as a hyperparameter - try both $S_1$ and $S_2$ to see which works better. However, $S_2$ is more commonly used because scaling by $S_2$ is more aggressive, providing a stronger guarantee that the signal-to-noise ratio stays within a reasonable range, making it more robust across different batches and content.</p>
+</li>
+<li><p><strong>When should we recompute the scalar?</strong></p>
+<p>Do we compute $c$ for every batch of data and do $\bm{z} \rightarrow c \bm{z}$ per batch? Or if we compute $c$ for each dataset? No no.</p>
+<p>In contrast, the LDM / Stable Diffusion framework <strong>binds a fixed constant $c$ to the entire VAE</strong>, which is specified in the config file. It's tuned as a hyperparameter and is fixed after model training. Practical guidelines for different scenarios:</p>
+<p>| Scenario | Recalculate $S_1/S_2$? | Explanation |
+|-----------|--------------------------|--------------|
+| <strong>Using or fine-tuning within the original Stable Diffusion framework</strong> (same domain, e.g., photographic images) | ❌ No | Keep the original setting (e.g., SD1.x / SD2.x typically use $c = 0.18215$ <a href="https://huggingface.co/CompVis/stable-diffusion-v1-4/blob/refs%2Fpr%2F224/vae/config.json">[link]</a>; sdxl uses 0.13025 <a href="https://huggingface.co/stabilityai/sdxl-vae/blob/main/config.json">[link]</a> ). |
+| <strong>Using or fine-tuning for a different domain</strong> | ✅ Recommended | The latent distribution produced by the VAE may differ (overall variance changes), so the original $c$ may no longer match. |
+| <strong>Training your own VAE + Diffusion from scratch</strong> | ✅ Required | After training your VAE, compute $S_1$ / $S_2$ on your dataset to determine a new fixed scaling factor. |</p>
+<p>Why don't we scale per batch or per dataset, but instead fix a single $c$ for each version of the VAE?</p>
+<p>The VAE and Diffusion are coupled components: the VAE determines the statistical properties of the latents, and the Diffusion model decides how to add and remove noise within this space. The scalar $c$ acts as the interface constant between them. Once the two modules are trained together, they form a stable statistical coupling under this $c$, ensuring their alignment on any input batch. During inference or fine-tuning, you should not modify $c$; if you do, it’s like changing a hyperparameter (such as the number of layers) after a model has already been trained and expecting everything to still work properly.</p>
+</li>
+<li><p><strong>This is an engineering trick specific to LDM; ordinary VAEs do not need it.</strong></p>
+<p>For a standalone VAE, the encoder outputs $\bm z$ and the decoder directly uses it for reconstruction, so the internal latent scale does not matter as long as the model itself is consistent. LDM is different: after the VAE is trained in the first stage, it is "frozen," and there is a diffusion process between the encoder and decoder. There is no end-to-end gradient flow between encoder and decoder to automatically match the scale. To ensure the input distribution to the diffusion model is stable and the noise scale is consistent, we must manually standardize the latent.</p>
+</li>
+</ul>
+</li>
+</ul>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4c7b826b">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=8f16bb47">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h3 id="3.-Batch-Version-of-Forward-Pass-and-Backward-Pass">3. Batch Version of Forward Pass and Backward Pass<a class="anchor-link" href="#3.-Batch-Version-of-Forward-Pass-and-Backward-Pass">¶</a></h3><p>Compute the forward pass for the <strong>entire batch</strong>, where $\mathbf{1}\in\mathbb{R}^{m\times 1}$ represents an all-ones column vector, used for broadcasting the bias terms.</p>
+<h3 id="2.-Latent-Space-U-Net-(Diffusion-Noise-Predictor)">2. Latent Space U-Net (Diffusion Noise Predictor)<a class="anchor-link" href="#2.-Latent-Space-U-Net-(Diffusion-Noise-Predictor)">¶</a></h3><p><strong>If no conditioning is added</strong>, the U-Net structure and computation in LDM are exactly the same as in DDPM, with the only difference being the input is switched from pixel space $\mathbf{x}_t$ to latent space $\mathbf{z}_t$.</p>
 <ul>
-<li><p><strong>Layer 1 (Hidden 1)</strong>:
-$$
-\mathbf{z}^{(i)}_{(1)} = W_1 \mathbf{x}^{(i)} + \mathbf{b}_1 \quad \in \mathbb{R}^3
-$$
-$$
-\mathbf{a}^{(i)}_{(1)} = \text{ReLU}(\mathbf{z}^{(i)}_{(1)}) \quad \in \mathbb{R}^3
-$$
-$$
-Z_{(1)} = X W_1^\top + \mathbf{1}\mathbf{b}_1^\top \in \mathbb{R}^{m \times 3}
-$$
-$$
-A_{(1)} = \text{ReLU}(Z_{(1)}) \in \mathbb{R}^{m \times 3}
+<li>Input: noised latent $\mathbf{z}_t$, timestep $t$</li>
+<li>Output: noise prediction $\epsilon_\theta(\mathbf{z}_t, t)$</li>
+<li>Structure: U-Net + ResBlocks + (mid/low resolution) Self-Attention</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=6c60bea8">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="3.-Conditioning-Module">3. Conditioning Module<a class="anchor-link" href="#3.-Conditioning-Module">¶</a></h3><p>The concept of "conditioning" first appeared in Improved DDPM (Dhariwal &amp; Nichol 2021), but it was LDM (Rombach et al., 2022) that systematically proposed and popularized the general, modular conditioning module. We say that LDM has a conditioning module, while Improved DDPM does not have an independent conditioning module, because in Improved DDPM, conditions (such as class label embeddings) must be manually concatenated at a certain layer, which changes the input channel dimension or computation graph of that layer. In contrast, in LDM, cross-attention can be directly inserted without altering the network structure.</p>
+<h4 id="Multi-Modal-Conditioning">Multi-Modal Conditioning<a class="anchor-link" href="#Multi-Modal-Conditioning">¶</a></h4><p>LDM is <strong>the first diffusion model to truly realize multi-modal conditioning</strong>. Before LDM, Conditional DDPM, Classifier guidance, and CFG only supported "conditional" versions based on class labels. LDM, however, introduced cross-attention for the first time, allowing text embeddings or other modalities to interact with certain U-Net layers (image features). Note that this is not simply concatenation. Instead, each pixel in the U-Net feature map is adjusted via guidance from text embeddings through cross-attention. This injects semantic control into the U-Net layers, enabling the model to handle multi-modal inputs end-to-end during both training and inference.</p>
+<p>The condition can be: class label, semantic segmentation map, depth map, text, reference image, etc. For text and image conditions, we may use embedding models to map them to embeddings. CLIP, BERT, ViT and similar encoders are all usable. A widely used encoder for text conditions is <strong>Contrastive Language–Image Pretraining (CLIP; Radford et al., OpenAI)</strong>, which was the first to propose a cross-modal contrastive learning model able to map text and image into the same semantic space, and is the default choice in Stable Diffusion.</p>
+<p>The traditional concatenation-based approach for introducing conditions cannot effectively enable multi-modal conditioning, because:</p>
+<ul>
+<li><strong>Semantic dimension mismatch</strong>: text embeddings are a sequence of tokens (a sentence is made up of many words) in shape $(B, T, d)$, while U-Net features have shape $(B, C, H, W)$. Directly concatenating the text embedding results in a huge $T$ dimension explosion; compressing the sequence into an average embedding loses hierarchical semantics. For example, “A red car beside a blue house”: after concatenation, the model only knows “car+house” in aggregate, but doesn’t know which part of the image should correspond to which word.</li>
+<li><strong>Spatial alignment problem</strong>: Concatenation provides only global semantics and cannot tell the network “draw a mountain on the left, draw an ocean on the right”, i.e., which parts of the sentence correspond to which areas in the image. The model lacks the mechanism for <strong>token-to-pixel alignment</strong>.</li>
+</ul>
+<h4 id="Cross-Attention-in-U-Net">Cross-Attention in U-Net<a class="anchor-link" href="#Cross-Attention-in-U-Net">¶</a></h4><p>In the U-Net of LDM (Latent Diffusion Model), we introduce conditional cross-attention into the standard DDPM U-Net. The structure becomes:</p>
+<pre><code>Conv → [optional Self-Attention] → [optional Cross-Attention] → Conv
+</code></pre>
+<p>Notice that for $X_{out} = \text{Cross-Attn}( \text{Self-Attn}(X_{in}), \text{context})$, the shape of $X_{out}$ and $X_{in}$ does not change.
+Therefore, it does not alter the spatial or channel dimensions of the input or output.</p>
+<h5 id="Compute-Attention"><strong>Compute Attention</strong><a class="anchor-link" href="#Compute-Attention">¶</a></h5><p>Here we use the token embedding output from a CLIP text encoder as an example context.</p>
+<p>$$
+context \in \mathbb{R}^{B×T×C_{ctx}}
 $$</p>
-</li>
-<li><p><strong>Layer 2 (Hidden 2)</strong>:
+<ul>
+<li>$T$ = number of text tokens;</li>
+<li>$C_{ctx}$ = dimension of the text features.</li>
+</ul>
+<p>In Cross-Attention:
 $$
-\mathbf{z}^{(i)}_{(2)} = W_2 \mathbf{a}^{(i)}_{(1)} + \mathbf{b}_2 \quad \in \mathbb{R}^2
+Q = X W_Q, \quad K = context W_K, \quad V = context W_V
 $$
+Compute:
 $$
-\mathbf{a}^{(i)}_{(2)} = \text{ReLU}(\mathbf{z}^{(i)}_{(2)}) \quad \in \mathbb{R}^2
+A = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right), \quad Y = A V
 $$
+Usually a linear layer maps $Y$ back to the same channel size as the input $X$:
 $$
-Z_{(2)} = A_{(1)} W_2^\top + \mathbf{1}\mathbf{b}_2^\top \in \mathbb{R}^{m \times 2}
-$$
-$$
-A_{(2)} = \text{ReLU}(Z_{(2)}) \in \mathbb{R}^{m \times 2}
+X_{out} = W_O Y + X
 $$</p>
-</li>
-<li><p><strong>Output Layer</strong>:
+<p>A crucial point: Cross-Attention does not change the spatial shape of the input or output, nor the channel dimension (which is usually preserved by projection layers).
+Specifically:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Shape</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input <code>X</code></td>
+<td>(B, C, H, W)</td>
+<td>Current U-Net feature map</td>
+</tr>
+<tr>
+<td>After Flatten</td>
+<td>(B, N, C)</td>
+<td>N = H×W</td>
+</tr>
+<tr>
+<td>Q</td>
+<td>(B, N, d)</td>
+<td>Image tokens</td>
+</tr>
+<tr>
+<td>K, V</td>
+<td>(B, T, d)</td>
+<td>Conditioning tokens (e.g. text)</td>
+</tr>
+<tr>
+<td>A</td>
+<td>(B, N, T)</td>
+<td>Attention weights: each pixel to word</td>
+</tr>
+<tr>
+<td>Y</td>
+<td>(B, N, d)</td>
+<td>Features after merging text semantics</td>
+</tr>
+<tr>
+<td>Reshape Back</td>
+<td>(B, C, H, W)</td>
+<td>Same shape as input</td>
+</tr>
+</tbody>
+</table>
+<h5 id="Intuition-of-Cross-Attention-v.s.-Self-Attention"><strong>Intuition of Cross-Attention v.s. Self-Attention</strong><a class="anchor-link" href="#Intuition-of-Cross-Attention-v.s.-Self-Attention">¶</a></h5><p>Self-Attention is like each pixel "communicating with other pixels", where pixels discuss among themselves to determine the image structure. Cross-Attention is like each pixel "communicating with text tokens", where each pixel asks the text: "what kind of semantic content do you want me to represent?"</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Source</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q (Query)</td>
+<td>From U-Net feature map</td>
+<td>"Image pixel (latent token) is asking: which words in the text are relevant to me?"</td>
+</tr>
+<tr>
+<td>K (Key)</td>
+<td>From text embedding</td>
+<td>"Each word provides its own semantic feature representation"</td>
+</tr>
+<tr>
+<td>V (Value)</td>
+<td>From text embedding</td>
+<td>"The semantic content provided by the words"</td>
+</tr>
+</tbody>
+</table>
+<h4 id="When-Conditioning-Module-Is-Necessary">When Conditioning Module Is Necessary<a class="anchor-link" href="#When-Conditioning-Module-Is-Necessary">¶</a></h4><p>When the input data is multimodal (for example, if half the image is a cat and half is a map), an unconditional diffusion model will have trouble learning effectively—conditional modeling is needed to separate the semantics.</p>
+<p>Notice that the difference between adding a condition and simply scaling the latent space is that setting the numerical variance to 1 only ensures training stability (signal-to-noise ratio matching), but does not determine the semantic structure of the data. "Variance = 1" is like adjusting all the microphones to the same volume, while "the same semantic distribution" means making sure everyone is singing the same song.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=43e25291">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----LDM-Training-Process">--- LDM Training Process<a class="anchor-link" href="#----LDM-Training-Process">¶</a></h2><h3 id="1.-Train/Select-VAE">1. Train/Select VAE<a class="anchor-link" href="#1.-Train/Select-VAE">¶</a></h3><p>First train the VAE, then train the diffusion model. But the scalar for the VAE latent space is not determined during VAE training, but is calculated as a hyperparameter (using $S_1$, $S_2$) when training the diffusion model.</p>
+<ul>
+<li>Data: High-resolution images consistent with the target domain.</li>
+<li>Objective: Perceptual error (LPIPS/SSIM/FID) + VAE loss, to avoid excessive blurriness or sharpness.</li>
+<li>Validation: Visually inspect reconstruction samples + PSNR + recon error + perceptual error (LPIPS/SSIM/FID).</li>
+</ul>
+<h3 id="2.-Training-Diffusion-in-Latent-Space">2. Training Diffusion in Latent Space<a class="anchor-link" href="#2.-Training-Diffusion-in-Latent-Space">¶</a></h3><p>The diffusion process (forward/reverse steps) in LDM is the same as in vanilla DDPM. The only difference is in which space the diffusion happens (latent space instead of pixel space), and in how conditions are added (cross-attention). The mathematical formulation of the forward diffusion and reverse denoising processes does not change; the model still predicts noise $\epsilon_\theta$ and the training objective is the same.
 $$
-z^{(i)}_{(3)} = W_3 \mathbf{a}^{(i)}_{(2)} + b_3 \quad \in \mathbb{R}
+q(z_t|z_{t-1}) = \mathcal{N}(\sqrt{1-\beta_t}z_{t-1}, \beta_t I)
 $$
 $$
-Z_{(3)} = A_{(2)} W_3^\top + b_3 \in \mathbb{R}^{m \times 1}
+p_\theta(z_{t-1}|z_t) = \mathcal{N}(\mu_\theta(z_t,t), \Sigma_\theta(z_t,t))
 $$</p>
-<p>Predicted outputs:</p>
-<ul>
-<li><strong>Regression</strong>:
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=44b27e63">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----LDM-Generation-Process">--- LDM Generation Process<a class="anchor-link" href="#----LDM-Generation-Process">¶</a></h2><p>The generation process of LDM is the same as DDPM, except that it performs denoising in the latent space. Finally, there is one more step: decoding $z_0$ back into an image with the VAE. Both follow the same reverse diffusion chain:
 $$
-\hat{y}_i = z^{(i)}_{(3)}
+z_{t-1} = \mu_\theta(z_t, t, c) + \sigma_t \epsilon, \quad \epsilon \sim \mathcal{N}(0,I)
 $$
-$$
-\hat{\mathbf{y}} = Z_{(3)} \in \mathbb{R}^{m \times 1}
-$$</li>
-<li><strong>Classification</strong>:
-$$
-\hat{y}_i = \sigma(z^{(i)}_{(3)}) = \frac{1}{1 + e^{-z^{(i)}_{(3)}}}
-$$
-$$
-\hat{\mathbf{y}} = \sigma(Z_{(3)}) = \frac{1}{1 + e^{-Z_{(3)}}} \in \mathbb{R}^{m \times 1}
-$$</li>
-</ul>
-</li>
-</ul>
-<p>Compute the Loss function.</p>
-<ul>
-<li><strong>Regression (MSE)</strong>:
-$$
-L = \frac{1}{m} \sum_{i=1}^{m} \left( \hat{y}_i - y_i \right)^2 = \frac{1}{m} \| \hat{\mathbf{y}} - \mathbf{y} \|^2
-$$</li>
-<li><strong>Binary Classification (Cross-Entropy)</strong>:
-$$
-L = -\frac{1}{m} \sum_{i=1}^{m} \left[ y_i \log(\hat{y}_i) + (1 - y_i) \log(1 - \hat{y}_i) \right]
-$$</li>
-</ul>
-<p>Compute backward pass.</p>
-<ul>
-<li><p><strong>Output Layer</strong></p>
-<ul>
-<li>Regression
-$$\boldsymbol{\delta}^{(i)}_{(3)} = \frac{2}{m} (\hat{y}_i - y_i)$$
-$$\boldsymbol{\delta}_{(3)} = \frac{2}{m} (\hat{\mathbf{y}} - \mathbf{y}) \in \mathbb{R}^{m \times 1}$$</li>
-<li>Classification
-$$\boldsymbol{\delta}^{(i)}_{(3)} = \frac{1}{m} (\hat{y}_i - y_i)$$
-$$\boldsymbol{\delta}_{(3)} = \frac{1}{m} (\hat{\mathbf{y}} - \mathbf{y}) \in \mathbb{R}^{m \times 1}$$</li>
-<li>Gradients for $W_3$, $b_3$
-$$\frac{\partial L}{\partial W_3} = \sum_{i=1}^{m} \boldsymbol{\delta}^{(i)}_{(3)} \cdot \mathbf{a}^{(i)}_{(2)}{}^\top,\quad \frac{\partial L}{\partial b_3} = \sum_{i=1}^{m} \boldsymbol{\delta}^{(i)}_{(3)}$$
-$$\frac{\partial L}{\partial W_3} = \boldsymbol{\delta}_{(3)}^\top A_{(2)},\quad \frac{\partial L}{\partial b_3} = \mathbf{1}^\top \boldsymbol{\delta}_{(3)}$$</li>
-</ul>
-</li>
-<li><p><strong>Hidden Layer 2</strong>
-$$\boldsymbol{\delta}^{(i)}_{(2)} = (\boldsymbol{\delta}^{(i)}_{(3)} W_3) \odot \mathbf{1}_{\mathbf{z}^{(i)}_{(2)} &gt; 0}$$
-$$\boldsymbol{\delta}_{(2)} = (\boldsymbol{\delta}_{(3)} W_3) \odot \mathbf{1}_{Z_{(2)} &gt; 0} \in \mathbb{R}^{m \times 2}$$</p>
-<ul>
-<li>Gradients for $W_2$, $\mathbf{b}_2$
-$$\frac{\partial L}{\partial W_2} = \sum_{i=1}^{m} \boldsymbol{\delta}^{(i)}_{(2)} \cdot \mathbf{a}^{(i)}_{(1)}{}^\top,\quad \frac{\partial L}{\partial \mathbf{b}_2} = \sum_{i=1}^{m} \boldsymbol{\delta}^{(i)}_{(2)}$$
-$$\frac{\partial L}{\partial W_2} = \boldsymbol{\delta}_{(2)}^\top A_{(1)},\quad \frac{\partial L}{\partial \mathbf{b}_2} = \mathbf{1}^\top \boldsymbol{\delta}_{(2)}$$</li>
-</ul>
-</li>
-<li><p><strong>Hidden Layer 1</strong>
-$$\boldsymbol{\delta}^{(i)}_{(1)} = (\boldsymbol{\delta}^{(i)}_{(2)} W_2) \odot \mathbf{1}_{\mathbf{z}^{(i)}_{(1)} &gt; 0}$$
-$$\boldsymbol{\delta}_{(1)} = (\boldsymbol{\delta}_{(2)} W_2) \odot \mathbf{1}_{Z_{(1)} &gt; 0} \in \mathbb{R}^{m \times 3}$$</p>
-<ul>
-<li>Gradients for $W_1$, $\mathbf{b}_1$
-$$\frac{\partial L}{\partial W_1} = \sum_{i=1}^{m} \boldsymbol{\delta}^{(i)}_{(1)} \cdot \mathbf{x}^{(i)}{}^\top,\quad \frac{\partial L}{\partial \mathbf{b}_1} = \sum_{i=1}^{m} \boldsymbol{\delta}^{(i)}_{(1)}$$
-$$\frac{\partial L}{\partial W_1} = \boldsymbol{\delta}_{(1)}^\top X,\quad \frac{\partial L}{\partial \mathbf{b}_1} = \mathbf{1}^\top \boldsymbol{\delta}_{(1)}$$</li>
-</ul>
-</li>
-</ul>
+The trained U-Net predicts the noise $\epsilon_\theta$ at each step, gradually reconstructing a clean sample. The timestep scheduler and sampling algorithms (such as DDIM) are fully compatible.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=62efd7f5">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----LDM-Implementation">--- LDM Implementation<a class="anchor-link" href="#----LDM-Implementation">¶</a></h2><p>See Stable Diffusion Note.</p>
 </div>
 </div>
 </div>

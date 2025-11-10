@@ -3,7 +3,7 @@
 <html lang="en">
 <head><meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>1-BackpropagationAnswer</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<title>1-SoftmaxBackprop</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 <style type="text/css">
     pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -7511,62 +7511,143 @@ a.anchor-link {
 <!-- End of mermaid configuration --></head>
 <body class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
 <main>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=816a92ea">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=bf6c25e8">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h1 id="Backpropagation-Derivation-Answer">Backpropagation Derivation Answer<a class="anchor-link" href="#Backpropagation-Derivation-Answer">¶</a></h1><h3 id="1.-Loss-Functions">1. Loss Functions<a class="anchor-link" href="#1.-Loss-Functions">¶</a></h3><ul>
-<li><p><strong>Part A – Regression (MSE)</strong></p>
+<h1 id="Homework:-Backpropagation-Derivation-for-A-Three-Layer-Feedforward-Neural-Network-(Multi-Class)">Homework: Backpropagation Derivation for A Three-Layer Feedforward Neural Network (Multi-Class)<a class="anchor-link" href="#Homework:-Backpropagation-Derivation-for-A-Three-Layer-Feedforward-Neural-Network-(Multi-Class)">¶</a></h1><p>We consider a <strong>three-layer feedforward neural network</strong> with the following setup (the same architecture as in the binary backpropagation homework, except there are 5 neurons in the output layer because we do a 5-class classification):</p>
+<h3 id="Architecture">Architecture<a class="anchor-link" href="#Architecture">¶</a></h3><ul>
+<li><p><strong>Input layer</strong>:</p>
 <p>$$
-L = \frac{1}{2}(y - \hat{y})^2
+\mathbf{x} \in \mathbb{R}^4
 $$</p>
 </li>
-<li><p><strong>Part B – Classification (Binary Cross-Entropy)</strong></p>
+<li><p><strong>Hidden layer 1</strong>: 3 neurons, <strong>ReLU</strong> activation</p>
+</li>
+<li><p><strong>Hidden layer 2</strong>: 2 neurons, <strong>ReLU</strong> activation</p>
+</li>
+<li><p><strong>Output layer</strong>: 5 neurons, softmax activation</p>
+</li>
+</ul>
+<h3 id="Parameters">Parameters<a class="anchor-link" href="#Parameters">¶</a></h3><ul>
+<li><p>First hidden layer:</p>
 <p>$$
-L = -\Big[y \log(\hat{y}) + (1-y)\log(1-\hat{y})\Big]
+W_1 \in \mathbb{R}^{3 \times 4}, \quad \mathbf{b}_1 \in \mathbb{R}^3
+$$</p>
+</li>
+<li><p>Second hidden layer:</p>
+<p>$$
+W_2 \in \mathbb{R}^{2 \times 3}, \quad \mathbf{b}_2 \in \mathbb{R}^2
+$$</p>
+</li>
+<li><p>Output layer:</p>
+<p>$$
+W_3 \in \mathbb{R}^{5 \times 2}, \quad \mathbf{b}_3 \in \mathbb{R}^5
+$$</p>
+</li>
+<li><p>Activation function (ReLU):</p>
+<p>$$
+\text{ReLU}(z) = \max(0, z)
 $$</p>
 </li>
 </ul>
+<h3 id="Forward-Pass">Forward Pass<a class="anchor-link" href="#Forward-Pass">¶</a></h3><p><strong>Step 1 – Hidden layer 1</strong></p>
+<p>$$
+\mathbf{z}_{(1)} = W_1 \mathbf{x} + \mathbf{b}_1 \quad \in \mathbb{R}^3
+$$</p>
+<p>$$
+\mathbf{a}_{(1)} = \text{ReLU}(\mathbf{z}_{(1)}) \quad \in \mathbb{R}^3
+$$</p>
+<p><strong>Step 2 – Hidden layer 2</strong></p>
+<p>$$
+\mathbf{z}_{(2)} = W_2 \mathbf{a}_{(1)} + \mathbf{b}_2 \quad \in \mathbb{R}^2
+$$</p>
+<p>$$
+\mathbf{a}_{(2)} = \text{ReLU}(\mathbf{z}_{(2)}) \quad \in \mathbb{R}^2
+$$</p>
+<p><strong>Step 3 – Output layer</strong></p>
+<p>$$
+\mathbf{z}_{(3)} = W_3 \mathbf{a}_{(2)} + \mathbf{b}_3 \quad \in \mathbb{R}^5
+$$</p>
+<p>Predicted output:
+$\hat{\mathbf{y}} = \text{softmax}(\mathbf{z}_{(3)})$ where $\hat{y}_i = \frac{e^{z_i}}{\sum_{k=1}^5 e^{z_k}}, \quad i = 1,\dots,5$</p>
+<h2 id="Tasks">Tasks<a class="anchor-link" href="#Tasks">¶</a></h2><ol>
+<li><p><strong>Forward Pass</strong>:
+Write down the expression of loss function $L$.</p>
+</li>
+<li><p><strong>Backward Pass (Gradients)</strong>:
+Compute the following gradient for both cases.
+$$
+\frac{\partial L}{\partial W_3},\ \frac{\partial L}{\partial b_3},\quad
+\frac{\partial L}{\partial W_2},\ \frac{\partial L}{\partial \mathbf{b}_2},\quad
+\frac{\partial L}{\partial W_1},\ \frac{\partial L}{\partial \mathbf{b}_1}
+$$</p>
+</li>
+<li><p><strong>Batch Version of Forward Pass and Backward Pass</strong>:
+Extend the single-sample forward and backward derivations to the batch case, where the network processes a batch of $m$ input samples in parallel. Let the parameters be as defined earlier.</p>
+</li>
+</ol>
+<ul>
+<li><p>Inputs (Each row is a sample):
+$$
+X = \big[ \mathbf{x}^{(1)}, \mathbf{x}^{(2)}, \dots, \mathbf{x}^{(m)} \big] \in \mathbb{R}^{m \times 4}
+$$</p>
+</li>
+<li><p>Targets:
+$$
+\mathbf{y} = \big[ y^{(1)}, y^{(2)}, \dots, y^{(m)} \big] \in \mathbb{R}^{m}
+$$</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=3555d36e">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h1 id="-----Answer">---- Answer<a class="anchor-link" href="#-----Answer">¶</a></h1><h3 id="1.-Loss-Functions">1. Loss Functions<a class="anchor-link" href="#1.-Loss-Functions">¶</a></h3><p>Let the target be one-hot $\mathbf{y}\in\mathbb{R}^5$ (i.e., $y_c=1$ for the correct class $c$, else $0$). With $\hat{\mathbf{y}}=\mathrm{softmax}(\mathbf{z}_{(3)})$,
+$$
+L = -\sum_{i=1}^{5} y_i \log \hat y_i
+$$</p>
 <h3 id="2.-Backward-Pass-(Gradients)">2. Backward Pass (Gradients)<a class="anchor-link" href="#2.-Backward-Pass-(Gradients)">¶</a></h3><p>Let $\mathbf{1}_{(\cdot)}$ denote the indicator function. The derivative of ReLU can be expressed as</p>
 <p>$$
 \text{ReLU}'(z)=\mathbf{1}_{z&gt;0}.
 $$</p>
-<p>Whether we use MSE + identity mapping (regression) or Sigmoid + BCE (classification), the output-layer error term can be unified as
+<p>The gradient of the loss with respect to the raw score $\mathbf{z}_{(3)}$ can be deducted to (same as binary classification &amp; regression)
 $$
-\delta_{(3)} \;=\; \frac{\partial L}{\partial z_{(3)}} \;=\; \hat y - y.
-$$</p>
-<p>$$
 \boxed{
-\begin{aligned}
-&amp;\textbf{For regression:}\\
-&amp;\quad \hat y=z_{(3)},\quad L=\tfrac12(\hat y-y)^2=\tfrac12(z_{(3)}-y)^2\\
-&amp;\quad \text{Differentiate w.r.t. }z_{(3)}\text{:}\\
-&amp;\quad \frac{\partial L}{\partial z_{(3)}}=\frac{\partial}{\partial z_{(3)}}\tfrac12(z_{(3)}-y)^2
-=(z_{(3)}-y)=\hat y-y.\\[1em]
-&amp;\textbf{For binary classification:}\\
-&amp;\quad \frac{\partial L}{\partial \hat y}
-= -\left(\frac{y}{\hat y}-\frac{1-y}{1-\hat y}\right)
-= \frac{\hat y - y}{\hat y(1-\hat y)}.\\
-&amp;\quad \text{Directly by quotient rule }\frac{\partial \hat y}{\partial z_{(3)}}=\sigma'(z_{(3)})=\hat y(1-\hat y),\\
-&amp;\quad \text{multiplying gives}\\
-&amp;\quad \frac{\partial L}{\partial z_{(3)}}
-=\frac{\partial L}{\partial \hat y}\cdot\frac{\partial \hat y}{\partial z_{(3)}}
-=\frac{\hat y - y}{\hat y(1-\hat y)}\cdot \hat y(1-\hat y)
-=\hat y-y.
-\end{aligned}
+\boldsymbol{\delta}_{(3)}=\frac{\partial L}{\partial \mathbf{z}_{(3)}}=\hat{\mathbf{y}}-\mathbf{y}
 }
+$$
+First compute
+$$
+\frac{\partial L}{\partial \hat y_i} = -\frac{y_i}{\hat y_i},
+\qquad
+\frac{\partial \hat y_i}{\partial z_j}=\hat y_i(\mathbf{1}_{i=j}-\hat y_j) \text{(directly by quotient rule)}.
+$$
+Thus
+$$
+\frac{\partial L}{\partial z_j}
+=\sum_{i=1}^{5}\frac{\partial L}{\partial \hat y_i}\frac{\partial \hat y_i}{\partial z_j}
+=\sum_{i=1}^{5}\left(-\frac{y_i}{\hat y_i}\right)\hat y_i(\mathbf{1}_{i=j}-\hat y_j)
+=\sum_{i=1}^{5}-y_i(\mathbf{1}_{i=j}-\hat y_j)
+=\hat y_j-y_j,
 $$</p>
 <h4 id="Output-layer-($W_3%5Cin%5Cmathbb%7BR%7D%5E%7B1%5Ctimes-2%7D,%5C,-b_3%5Cin%5Cmathbb%7BR%7D$)">Output layer ($W_3\in\mathbb{R}^{1\times 2},\, b_3\in\mathbb{R}$)<a class="anchor-link" href="#Output-layer-($W_3%5Cin%5Cmathbb%7BR%7D%5E%7B1%5Ctimes-2%7D,%5C,-b_3%5Cin%5Cmathbb%7BR%7D$)">¶</a></h4><p>$$
-\frac{\partial L}{\partial W_3}=\delta_{(3)}\,\mathbf{a}_{(2)}^{\!\top},\qquad
-\frac{\partial L}{\partial b_3}=\delta_{(3)}.
+\frac{\partial L}{\partial W_3}=\boldsymbol{\delta}_{(3)}\,\mathbf{a}_{(2)}^{\!\top},\qquad
+\frac{\partial L}{\partial \mathbf{b}_3}=\boldsymbol{\delta}_{(3)}.
 $$</p>
 <h4 id="Hidden-layer-2-(ReLU)">Hidden layer 2 (ReLU)<a class="anchor-link" href="#Hidden-layer-2-(ReLU)">¶</a></h4><p>$$
 \boldsymbol{\delta}_{(2)} 
 = \frac{\partial L}{\partial \mathbf{z}_{(2)}}
-= \frac{\partial L}{\partial z_{(3)}} \cdot \frac{\partial z_{(3)}}{\partial \mathbf{a}_{(2)}} \cdot \frac{\partial \mathbf{a}_{(2)}}{\partial \mathbf{z}_{(2)}}
-= \big(W_3^{\!\top}\delta_{(3)}\big)\;\odot\;\mathbf{1}_{\mathbf{z}_{(2)}&gt;0},
+= \frac{\partial L}{\partial \mathbf{z}_{(3)}} \cdot \frac{\partial \mathbf{z}_{(3)}}{\partial \mathbf{a}_{(2)}} \cdot \frac{\partial \mathbf{a}_{(2)}}{\partial \mathbf{z}_{(2)}}
+= \big(W_3^{\!\top}\boldsymbol{\delta}_{(3)}\big)\;\odot\;\mathbf{1}_{\mathbf{z}_{(2)}&gt;0},
 $$
 $$
 \frac{\partial L}{\partial W_2}=\boldsymbol{\delta}_{(2)}\,\mathbf{a}_{(1)}^{\!\top},\qquad
@@ -7591,7 +7672,7 @@ $$</p>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4c7b826b">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=18fae743">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -7629,52 +7710,57 @@ $$</p>
 </li>
 <li><p><strong>Output Layer</strong>:
 $$
-z^{(i)}_{(3)} = W_3 \mathbf{a}^{(i)}_{(2)} + b_3 \quad \in \mathbb{R}
+  \mathbf{z}^{(i)}_{(3)} = W_3 \mathbf{a}^{(i)}_{(2)} + \mathbf{b}_3 \quad \in \mathbb{R}^5
+  $$
 $$
+  Z_{(3)} = A_{(2)}W_3^{\top} + \mathbf{1}\mathbf{b}_3^{\top}\ \in \mathbb{R}^{m\times 5}
+  $$
+Predicted outputs:
 $$
-Z_{(3)} = A_{(2)} W_3^\top + b_3 \in \mathbb{R}^{m \times 1}
+  \hat Y = \mathrm{softmax}(Z_{(3)})\ \in \mathbb{R}^{m\times 5} \ \text{(apply softmax for every row)}
+  $$
+that is, for the position $(i, k)$ in $\hat Y$:
+$$
+  \hat Y_{i, k}=\frac{\exp(Z_{(3),i,k})}{\sum_{c=1}^{5}\exp(Z_{(3),i,c})}.
+  $$</p>
+</li>
+<li><p><strong>Loss function</strong>
+$$
+L = \frac{1}{m} \sum_{i=1}^{m} L^{(i)}
+= -\frac{1}{m}\sum_{i=1}^{m}\sum_{k=1}^{5} Y_{i,k} \log \hat Y_{i,k}
 $$</p>
-<p>Predicted outputs:</p>
-<ul>
-<li><strong>Regression</strong>:
-$$
-\hat{y}_i = z^{(i)}_{(3)}
-$$
-$$
-\hat{\mathbf{y}} = Z_{(3)} \in \mathbb{R}^{m \times 1}
-$$</li>
-<li><strong>Classification</strong>:
-$$
-\hat{y}_i = \sigma(z^{(i)}_{(3)}) = \frac{1}{1 + e^{-z^{(i)}_{(3)}}}
-$$
-$$
-\hat{\mathbf{y}} = \sigma(Z_{(3)}) = \frac{1}{1 + e^{-Z_{(3)}}} \in \mathbb{R}^{m \times 1}
-$$</li>
-</ul>
 </li>
 </ul>
-<p>Compute the Loss function.</p>
-<ul>
-<li><strong>Regression (MSE)</strong>:
+<h4 id="Backward-Pass">Backward Pass<a class="anchor-link" href="#Backward-Pass">¶</a></h4><ul>
+<li><p><strong>Output Layer:</strong>
+The gradient of the loss with respect to the raw score $Z_{(3)}$ can be deducted to (same as binary classification &amp; regression)
+$$\boxed{\boldsymbol{\delta}_{(3)} = \frac{\partial L}{\partial Z_{(3)}} = \frac{1}{m}(\hat Y - Y)}$$</p>
+<p>The same as the single sample formula, for each sample:
 $$
-L = \frac{1}{m} \sum_{i=1}^{m} \left( \hat{y}_i - y_i \right)^2 = \frac{1}{m} \| \hat{\mathbf{y}} - \mathbf{y} \|^2
-$$</li>
-<li><strong>Binary Classification (Cross-Entropy)</strong>:
+  \boldsymbol{\delta}^{(i)}_{(3)} = \frac{\partial L}{\partial \mathbf{z}^{(i)}_{(3)}}
+  = \frac{1}{m}\frac{\partial L^{(i)}}{\partial \mathbf{z}^{(i)}_{(3)}} = \frac{1}{m} (\hat Y_{i,} - Y_{i,})
+  $$
+Then, for the entire batch:
 $$
-L = -\frac{1}{m} \sum_{i=1}^{m} \left[ y_i \log(\hat{y}_i) + (1 - y_i) \log(1 - \hat{y}_i) \right]
-$$</li>
-</ul>
-<p>Compute backward pass.</p>
+  \frac{\partial L}{\partial Z_{(3)}}
+  =
+  \begin{bmatrix}
+  \frac{\partial L}{\partial \mathbf{z}^{(1)}_{(3)}} \\
+  \frac{\partial L}{\partial \mathbf{z}^{(2)}_{(3)}} \\
+  \vdots \\
+  \frac{\partial L}{\partial \mathbf{z}^{(m)}_{(3)}}
+  \end{bmatrix}
+  =
+  \begin{bmatrix}
+  \boldsymbol{\delta}^{(1)}_{(3)} \\
+  \boldsymbol{\delta}^{(2)}_{(3)} \\
+  \vdots \\
+  \boldsymbol{\delta}^{(m)}_{(3)}
+  \end{bmatrix}
+  = \frac{1}{m} (\hat{Y} - Y).
+  $$</p>
 <ul>
-<li><p><strong>Output Layer</strong></p>
-<ul>
-<li>Regression
-$$\boldsymbol{\delta}^{(i)}_{(3)} = \frac{2}{m} (\hat{y}_i - y_i)$$
-$$\boldsymbol{\delta}_{(3)} = \frac{2}{m} (\hat{\mathbf{y}} - \mathbf{y}) \in \mathbb{R}^{m \times 1}$$</li>
-<li>Classification
-$$\boldsymbol{\delta}^{(i)}_{(3)} = \frac{1}{m} (\hat{y}_i - y_i)$$
-$$\boldsymbol{\delta}_{(3)} = \frac{1}{m} (\hat{\mathbf{y}} - \mathbf{y}) \in \mathbb{R}^{m \times 1}$$</li>
-<li>Gradients for $W_3$, $b_3$
+<li>Gradients for $W_3$, $\mathbf{b}_3$
 $$\frac{\partial L}{\partial W_3} = \sum_{i=1}^{m} \boldsymbol{\delta}^{(i)}_{(3)} \cdot \mathbf{a}^{(i)}_{(2)}{}^\top,\quad \frac{\partial L}{\partial b_3} = \sum_{i=1}^{m} \boldsymbol{\delta}^{(i)}_{(3)}$$
 $$\frac{\partial L}{\partial W_3} = \boldsymbol{\delta}_{(3)}^\top A_{(2)},\quad \frac{\partial L}{\partial b_3} = \mathbf{1}^\top \boldsymbol{\delta}_{(3)}$$</li>
 </ul>

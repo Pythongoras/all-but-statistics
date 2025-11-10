@@ -7528,10 +7528,14 @@ a.anchor-link {
 <ol>
 <li>Why the forward process converges to standard Gaussian?</li>
 <li>What is the input and output of the neural network in reverse process?</li>
-<li>How to compute the mean and variance of $p_\theta(\bm{x}_{t-1}\mid \bm{x}_t)$?</li>
+<li>How to compute the mean and variance of $p_\theta(\bm{x}_{t-1}\mid \bm{x}_t)$ in reverse process?</li>
 <li>What are the steps of the generationg process?</li>
 <li>How do we derive the L2 loss from MLE / ELBO?</li>
-<li>How to implement DDPM in pytorch?</li>
+<li>What is the principle of skip connection in U-Net?</li>
+<li>How to implement DDPM in pytorch (U-Net as noise predictor)?</li>
+<li>In U-Net, how is the residual block different from skip connection?</li>
+<li>How to add attention to U-Net?</li>
+<li>What are the loss functions in $x_0$-prediction and $v$-prediction?</li>
 </ol>
 </div>
 </div>
@@ -7617,9 +7621,13 @@ q(\mathbf{x}_t \mid \mathbf{x}_0) =
 \bar\alpha_t = \prod_{s=1}^t (1-\beta_s).
 $$
 By the Gaussian Conditioning Formula, let $\mathbf{x} = \mathbf{x}_{t-1}$, $\mathbf{y} = \mathbf{x}_t$, we know that $q(\mathbf{x}_{t-1}\mid \mathbf{x}_t)$ is still a Gaussian distribution and the mean and variance can be computed in a close form. Plug in the parameters above we can finally get a reduced form (detailed calculation see the appendix)
-$$\Sigma' = \frac{(1 - \bar\alpha_{t-1}) \beta_t}{1 - \bar\alpha_t} I$$
-$$\mu' = 
-\frac{\sqrt{\bar\alpha_{t-1}} \beta_t}{1 - \bar\alpha_t} \mathbf{x}_0 + \frac{\sqrt{\alpha_t}(1 - \bar\alpha_{t-1})}{1 - \bar\alpha_t} \mathbf{x}_t$$
+$$
+\Sigma' = \frac{(1 - \bar\alpha_{t-1}) \beta_t}{1 - \bar\alpha_t} I
+$$
+$$
+\mu' = 
+\frac{\sqrt{\bar\alpha_{t-1}} \beta_t}{1 - \bar\alpha_t} \mathbf{x}_0 + \frac{\sqrt{\alpha_t}(1 - \bar\alpha_{t-1})}{1 - \bar\alpha_t} \mathbf{x}_t
+$$
 Based on the expression above, we see that the variance $\Sigma'$ depends only on the time step. The mean $\mu'$, however, requires knowledge of $\mathbf{x}_0$. Since we only observe $\mathbf{x}_t$ but not $\mathbf{x}_0$, we need to figure out a way to approximate $\mathbf{x}_0$. To do this, we train a neural network $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)$ (typically an MLP or U-Net) to output $\hat{\boldsymbol{\epsilon}}$: a prediction of the noise $\boldsymbol{\epsilon}$ added during the forward process. Then, using the forward process formula:
 $$
 \mathbf{x}_t = \sqrt{\bar\alpha_t} \mathbf{x}_0 + \sqrt{1 - \bar\alpha_t} \boldsymbol{\epsilon},
@@ -7838,7 +7846,7 @@ Many implementations train directly with $L_{\mathrm{simple}}$ (sometimes adding
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----DDPM-Implementation">--- DDPM Implementation<a class="anchor-link" href="#----DDPM-Implementation">¶</a></h2>
+<h2 id="----DDPM-Implementation-(Simple-MLP-as-Noise-Predictor)">--- DDPM Implementation (Simple MLP as Noise Predictor)<a class="anchor-link" href="#----DDPM-Implementation-(Simple-MLP-as-Noise-Predictor)">¶</a></h2>
 </div>
 </div>
 </div>
@@ -7865,13 +7873,19 @@ Many implementations train directly with $L_{\mathrm{simple}}$ (sometimes adding
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [10]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="c1"># ---------------------------</span>
 <span class="c1"># Utilities</span>
 <span class="c1"># ---------------------------</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">cosine_beta_schedule</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">s</span><span class="o">=</span><span class="mf">0.008</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; betas = cosine_beta_schedule(5)</span>
+<span class="sd">        &gt;&gt;&gt; betas</span>
+<span class="sd">        tensor([0.0064, 0.0243, 0.0630, 0.1310, 0.2250])</span>
+<span class="sd">    """</span>
     <span class="n">steps</span> <span class="o">=</span> <span class="n">T</span>
     <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="n">steps</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
     <span class="n">alphas_cumprod</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(((</span><span class="n">x</span><span class="o">/</span><span class="n">T</span><span class="p">)</span><span class="o">+</span><span class="n">s</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">s</span><span class="p">)</span><span class="o">*</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
@@ -7883,6 +7897,12 @@ Many implementations train directly with $L_{\mathrm{simple}}$ (sometimes adding
 <span class="w">    </span><span class="sd">"""</span>
 <span class="sd">    Map time step t to a vector. Input a number, output a vector.</span>
 <span class="sd">    Benefits: Removes scale effects; Capture relative relationships; Unifies representation range.</span>
+<span class="sd">    # Example:</span>
+<span class="sd">    # Input: t = torch.tensor([1, 10, 100]), dim=8</span>
+<span class="sd">    # Output: t_embed(t, 8) =&gt;</span>
+<span class="sd">    # tensor([[ 0.8415,  0.9093,  0.1411,  0.7568,  0.5403, -0.4161, -0.9899,  0.6536],</span>
+<span class="sd">    #         [ 0.9415,  0.1367,  0.0560,  0.6251,  0.3366,  0.9905, -0.9984,  0.7805],</span>
+<span class="sd">    #         [ 0.5064, -0.7061, -0.0627,  0.4431, -0.8623,  0.7081, -0.9980,  0.8965]])</span>
 <span class="sd">    """</span>
     <span class="n">half</span> <span class="o">=</span> <span class="n">dim</span> <span class="o">//</span> <span class="mi">2</span>
     <span class="n">freqs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">half</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">t</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">10000.0</span><span class="p">)</span><span class="o">/</span><span class="nb">max</span><span class="p">(</span><span class="n">half</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">)))</span>
@@ -7900,7 +7920,7 @@ Many implementations train directly with $L_{\mathrm{simple}}$ (sometimes adding
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [11]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="c1"># ---------------------------</span>
@@ -7943,7 +7963,7 @@ Many implementations train directly with $L_{\mathrm{simple}}$ (sometimes adding
                 <span class="n">x</span> <span class="o">=</span> <span class="n">mean</span>
         <span class="k">return</span> <span class="n">x</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">q_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="c1"># Exactone-step forward process. Input t here is a number not an embedding.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">q_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x0</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">noise</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="c1"># Exact one-step forward process. Input t here is a number not an embedding.</span>
         <span class="k">if</span> <span class="n">noise</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="n">noise</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">x0</span><span class="p">)</span>
         <span class="c1"># self.sqrt_alphas_cumprod[t] has shape (batch,), x0 has shape (batch, xdim)</span>
         <span class="c1"># So we add [:, None] → (batch, 1), to enable element-wise multiplication</span>
@@ -7958,7 +7978,7 @@ Many implementations train directly with $L_{\mathrm{simple}}$ (sometimes adding
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In [12]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="cm-editor cm-s-jupyter">
 <div class="highlight hl-ipython3"><pre><span></span><span class="c1"># ---------------------------</span>
@@ -7967,15 +7987,15 @@ Many implementations train directly with $L_{\mathrm{simple}}$ (sometimes adding
 <span class="k">class</span><span class="w"> </span><span class="nc">EpsModel</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xdim</span><span class="p">,</span> <span class="n">tdim</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">hidden</span><span class="o">=</span><span class="mi">256</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">tproj</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">tdim</span><span class="p">,</span> <span class="n">hidden</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">SiLU</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tproj</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">tdim</span><span class="p">,</span> <span class="n">hidden</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">SiLU</span><span class="p">())</span> 
         <span class="bp">self</span><span class="o">.</span><span class="n">net</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">xdim</span><span class="o">+</span><span class="n">hidden</span><span class="p">,</span> <span class="n">hidden</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">SiLU</span><span class="p">(),</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden</span><span class="p">,</span> <span class="n">hidden</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">SiLU</span><span class="p">(),</span>
             <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">hidden</span><span class="p">,</span> <span class="n">xdim</span><span class="p">)</span>
         <span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
-        <span class="n">emb</span> <span class="o">=</span> <span class="n">t_embed</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tproj</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">in_features</span><span class="p">)</span>
-        <span class="n">temb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tproj</span><span class="p">(</span><span class="n">emb</span><span class="p">)</span>
+        <span class="n">emb</span> <span class="o">=</span> <span class="n">t_embed</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tproj</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">in_features</span><span class="p">)</span> <span class="c1"># emb shape: (B, dim)</span>
+        <span class="n">temb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tproj</span><span class="p">(</span><span class="n">emb</span><span class="p">)</span>  <span class="c1"># why we need tproj given that t_embed already maps t to a vector</span>
         <span class="n">h</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="n">temb</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">net</span><span class="p">(</span><span class="n">h</span><span class="p">)</span>
 </pre></div>
@@ -8148,6 +8168,413 @@ Many implementations train directly with $L_{\mathrm{simple}}$ (sometimes adding
 <pre>Saved samples to samples/circle.pt (tensor of shape [64, 2])
 </pre>
 </div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f5e79ea8">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----U-Net-As-Noise-Predictor-(Instead-of-MLP)">--- U-Net As Noise Predictor (Instead of MLP)<a class="anchor-link" href="#----U-Net-As-Noise-Predictor-(Instead-of-MLP)">¶</a></h2><h3 id="What-is-U-Net?">What is U-Net?<a class="anchor-link" href="#What-is-U-Net?">¶</a></h3><p>What is the background of U-Net? U-Net was not proposed in the original DDPM paper; it actually dates back to 2015. However, back then it was introduced for image segmentation rather than generation. Image segmentation means: given an input image $x \in \mathbb{R}^{C\times H\times W}$, the output is a mask $\in \mathbb{R}^{K\times H\times W}$, where each pixel has probabilities for $K$ different classes (for example: sky, tree, person), and each pixel’s value denotes which object or region it belongs to.</p>
+<p>Ronneberger et al., "U-Net: Convolutional Networks for Biomedical Image Segmentation" first proposed U-Net for biomedical image segmentation—tasks like segmenting "cell nuclei", "tumor regions", or "organ boundaries" from CT or microscope images. U-Net is structured as encoder + decoder + skip connections. As shown in the figure below, it's called "U-Net" because its architecture looks like the letter "U".</p>
+<pre><code>Encoder                                               Decoder
+─────────────────────────────────────                ─────────────────────────────────────
+Input → [Enc1] → pool → [Enc2] → pool → [Bottleneck] → up → [Dec1] → up → [Dec2] → Output
+            │              │                                  ↑               ↑
+            └───skip1──────│──────────────────────────────────┘               │
+                           └───── skip2 ──────────────────────────────────────┘
+
+</code></pre>
+<p>In this network:</p>
+<ul>
+<li><strong>Encoder</strong>: Repeatedly uses <code>Conv2d</code> + pooling to reduce the image resolution $(H, W)$ and increase the number of channels, making the representation coarser but more abstract, so it learns semantic features (e.g., "there is a cat in this image").</li>
+<li><strong>Decoder</strong>: Uses <code>ConvTranspose2d</code> or <code>interpolate</code> to increase the image resolution and decrease the number of channels, gradually restoring the original image size, e.g., from 32×32 → 64×64 → 128×128.</li>
+<li><strong>Bottleneck</strong>: This is the endpoint of the encoder and the starting point of the decoder. The encoder compresses the information to this point; the decoder restores it from here. This is the <strong>most compressed semantic representation</strong> of the entire image: the spatial resolution is the smallest, channel count is the largest, and features are the most abstract. At this point, the model has a "global view" and understands "what is in the image," but spatial details are lost.</li>
+<li><strong>Skip Connection</strong>: The core idea is to <strong>connect decoder and encoder layers of the same spatial resolution (same $H \times W$)</strong>. Features from different encoder layers (with different resolutions) are concatenated with decoder layers of the same size, so each decoder layer receives both global semantics (from the decoder) and local details (from the corresponding encoder layer). Also, only when $H \times W$ matches can feature maps be concatenated along the channel dimension (dim=1) with <code>torch.cat()</code>.</li>
+</ul>
+<p>Here is the code of a toy 2-layer encoder + 2-layer decoder U-Net. Perfectly detailized the structure sketch before.</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=1154f671">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ToyUNet</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_ch</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">out_ch</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="c1"># --- Encoder ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enc1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_ch</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span> <span class="c1"># -&gt; x1: [B,16,H,W]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enc2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span> <span class="c1"># -&gt; x3: [B,32,H/2,W/2]</span>
+        <span class="c1"># --- Decoder ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">up1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ConvTranspose2d</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dec1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">16</span> <span class="o">+</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">up2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ConvTranspose2d</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> 
+        <span class="bp">self</span><span class="o">.</span><span class="n">dec2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">8</span> <span class="o">+</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">out_ch</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+        <span class="c1"># --- Encoder ---</span>
+        <span class="n">x1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">enc1</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>                <span class="c1"># [B,16,H,W]</span>
+        <span class="n">x2</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">max_pool2d</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>         <span class="c1"># [B,16,H/2,W/2]</span>
+        <span class="n">x3</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">enc2</span><span class="p">(</span><span class="n">x2</span><span class="p">)</span>               <span class="c1"># [B,32,H/2,W/2]</span>
+        <span class="n">bottleneck</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">max_pool2d</span><span class="p">(</span><span class="n">x3</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="c1"># [B,32,H/4,W/4]</span>
+        <span class="c1"># --- Decoder ---</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">up1</span><span class="p">(</span><span class="n">bottleneck</span><span class="p">)</span>        <span class="c1"># [B,16,H/2,W/2]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">y</span><span class="p">,</span> <span class="n">x3</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>   <span class="c1"># Enc2 → Dec1. shape: [B, 16 + 32, H/2, W/2]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec1</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>                <span class="c1"># [B,16,H/2,W/2]</span>
+
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">up2</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>                 <span class="c1"># [B,8,H,W]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">y</span><span class="p">,</span> <span class="n">x1</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>   <span class="c1"># Enc1 → Dec2. shape: [B, 8 + 16, H, W]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec2</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>                <span class="c1"># [B,8,H,W]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_conv</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>      
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=3e12008c">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="Use-U-Net-in-DDPM">Use U-Net in DDPM<a class="anchor-link" href="#Use-U-Net-in-DDPM">¶</a></h3><p>The original DDPM paper (Ho et al., "Denoising Diffusion Probabilistic Models") used U-Net as the backbone for the noise prediction network εθ(xₜ, t). Since then, nearly all diffusion models (including conditional DDPM, LDM, and Stable Diffusion) have continued to adopt this U-Net architecture.</p>
+<ul>
+<li><p>Why DDPM uses U-Net as noist predictor?</p>
+<p>The task of DDPM is: given a noisy image as input, output a noise map of the same size. In other words, this is a pixel-wise mapping task (image-to-image regression), which includes problems like image segmentation, super-resolution, and denoising. U-Net was specifically designed for such tasks; at the time, it was the most mature dense prediction model (pixel-level output), making it especially suitable for predicting noise images with the same shape as the input.</p>
+</li>
+<li><p>How to use U-Net as noise predictor in DDPM?</p>
+<p>Recall that in DDPM, the noise predicton network $\epsilon_\theta(\mathbf{x}_t, t)$ takes $\mathbf{x}_t$ (shape $(B, C, H, W)$) and $t$ (shape $(B, )$) as input, and outputs the noise $\hat{\boldsymbol\epsilon}$ (shape $(B, C, H, W)$). To incorporate $t$ into the network, we comupte the global embedding of $t$ via MLP, and inject the time embedding to each layer (addition or concatenation).</p>
+</li>
+<li><p>Why use an MLP to get global time embedding but not generate time embedding each time of injection?</p>
+<p>Why do we use a single global time embedding vector (temb) for all layers, instead of generating a separate embedding for each layer? Because this vector represents a global attribute: at which step (t) in the diffusion process the entire image is currently at, that is, how much noise there is. t is a global variable; it does not change across space or layers. For the whole image, t is the same everywhere. Repeatedly generating new embeddings is meaningless, since the time information itself doesn't change—the only difference is how each layer interprets that information.</p>
+</li>
+<li><p>Why inject time embedding to each block?</p>
+<p>Because: In the early layers (high resolution), the model needs to know "this is a low-noise image at step t"; in the deeper layers (low resolution), the model needs to know "this is a high-noise latent feature at step t". The level of noise and the details to be restored change with time, and each layer's features depend differently on the time step. Therefore, Improved DDPM, DDIM, and Stable Diffusion all choose to inject the time embedding into every block (or ResidualBlock).</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=28b26363">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">timestep_embedding</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">dim</span><span class="p">):</span> <span class="c1"># t: [B] (int); return: [B, dim]</span>
+<span class="w">    </span><span class="sd">"""</span>
+<span class="sd">    sinusoidal position embedding, freqs = exp(-log(10000) * arange(0, half) / half)    (from DDPM paper Appendix B)</span>
+<span class="sd">    Remove the scale effect of timestamps like 1, 2, 3, ..., 100, ...</span>
+<span class="sd">    Allows the network to sense the relationship between different time steps (for example, 1 and 2 are close, 1 and 100 are far apart).</span>
+<span class="sd">    """</span>
+    <span class="n">half</span> <span class="o">=</span> <span class="n">dim</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">freqs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">10000</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">half</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span> <span class="o">/</span> <span class="n">half</span><span class="p">)</span> <span class="c1"># freqs shape: (half,)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">t</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span><span class="o">.</span><span class="n">float</span><span class="p">()</span> <span class="o">*</span> <span class="n">freqs</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="c1"># args shape: (B, half)</span>
+    <span class="n">emb</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">torch</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">args</span><span class="p">),</span> <span class="n">torch</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">args</span><span class="p">)],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># emb shape: (B, dim)</span>
+    <span class="k">return</span> <span class="n">emb</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ToyUNet_DDPM</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">in_ch</span><span class="o">=</span><span class="mi">3</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">in_ch</span> <span class="o">=</span> <span class="n">in_ch</span>
+        <span class="n">out_ch</span> <span class="o">=</span> <span class="n">in_ch</span>  <span class="c1"># noise prediction → same shape as input</span>
+        <span class="c1"># --- Time embedding ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_mlp</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span> <span class="c1"># global time embedding. also to match the bottleneck dimension</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">64</span><span class="p">),</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+            <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_proj_enc1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_proj_enc2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_proj_dec1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_proj_dec2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+        <span class="c1"># --- Encoder ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enc1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="n">in_ch</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">enc2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+        <span class="c1"># --- Decoder ---</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">up1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ConvTranspose2d</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dec1</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">16</span> <span class="o">+</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">up2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ConvTranspose2d</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">stride</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dec2</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">8</span> <span class="o">+</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">padding</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">out_conv</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">out_ch</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span> <span class="c1"># x: [B, C, H, W], t: [B] (int)</span>
+        <span class="c1"># --- time embedding ---</span>
+        <span class="n">temb</span> <span class="o">=</span> <span class="n">timestep_embedding</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">128</span><span class="p">)</span>   <span class="c1"># [B,128]</span>
+        <span class="n">temb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_mlp</span><span class="p">(</span><span class="n">temb</span><span class="p">)</span>              <span class="c1"># [B,32]</span>
+        <span class="c1"># --- Encoder ---</span>
+        <span class="n">x1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">enc1</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_proj_enc1</span><span class="p">(</span><span class="n">temb</span><span class="p">)[:,</span> <span class="p">:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>                      <span class="c1"># [B, 16, H, W]</span>
+        <span class="n">x2</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">max_pool2d</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>               <span class="c1"># [B, 16, H/2, W/2]</span>
+        <span class="n">x3</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">enc2</span><span class="p">(</span><span class="n">x2</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_proj_enc2</span><span class="p">(</span><span class="n">temb</span><span class="p">)[:,</span> <span class="p">:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>                     <span class="c1"># [B, 32, H/2, W/2]</span>
+        <span class="n">bottleneck</span> <span class="o">=</span> <span class="n">F</span><span class="o">.</span><span class="n">max_pool2d</span><span class="p">(</span><span class="n">x3</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">temb</span><span class="p">[:,</span> <span class="p">:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>      <span class="c1"># [B, 32, H/4, W/4]</span>
+        <span class="c1"># --- Decoder ---</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">up1</span><span class="p">(</span><span class="n">bottleneck</span><span class="p">)</span>                <span class="c1"># [B, 16, H/2, W/2]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">y</span><span class="p">,</span> <span class="n">x3</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>           <span class="c1"># [B, 16 + 32, H/2, W/2]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec1</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_proj_dec1</span><span class="p">(</span><span class="n">temb</span><span class="p">)[:,</span> <span class="p">:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>                       <span class="c1"># [B, 16, H/2, W/2]</span>
+
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">up2</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>                         <span class="c1"># [B, 8, H, W]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">y</span><span class="p">,</span> <span class="n">x1</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>           <span class="c1"># [B, 8 + 16, H, W]</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dec2</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_proj_dec2</span><span class="p">(</span><span class="n">temb</span><span class="p">)[:,</span> <span class="p">:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>                       <span class="c1"># [B, 8, H, W]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">out_conv</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="c1"># [B, out_ch, H, W]</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=c444e8c6">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="Add-residual-block-to-U-Net">Add residual block to U-Net<a class="anchor-link" href="#Add-residual-block-to-U-Net">¶</a></h3><p>There are two types of "skip connections" in DDPM. Both allow information to <strong>bypass intermediate layers</strong>, but they differ in scope and mathematical operation.</p>
+<ul>
+<li>U-Net long skip connections (encoder↔decoder): the key is <strong>concatenation</strong>, not addition.</li>
+<li>ResBlock short residual connections (addition): usually happen between consecutive layers (short distance). For example, $y = F(x) + x$ (the key is <strong>element-wise addition</strong>). This occurs in blocks such as "Input x → Layer1 → Layer2 → Layer3 → Output." The residual block in U-Net is essentially the same concept as in ResNet.</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f4961e20">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="Add-attention-to-U-Net">Add attention to U-Net<a class="anchor-link" href="#Add-attention-to-U-Net">¶</a></h3><p>Self-Attention in U-Net is an independent module that is "inserted" at a specific convolutional layer. It only models global relationships within that layer and <strong>does not connect across layers</strong>. Its Q, K, and V all come from the feature map of this layer, and it models the global dependencies among all pixels within this feature map. Typically, it looks like:</p>
+<pre><code>Conv → [optional Self-Attention] → Conv
+</code></pre>
+<p>Notice that for $X_{out} = \text{Attention}(X_{in})$, the shape of $X_{out}, X_{in}$ doesn't change.</p>
+<p>We usually use self-attention in low resolution layers because</p>
+<ul>
+<li>The complexity of self-attention is O(N^2), where N = H × W. For high-resolution layers (such as 64×64, 128×128), N is very large, and the computational and memory cost becomes prohibitive.</li>
+<li>Low resolution layers can already capture local features. Self-attention at medium or low resolutions can model global dependencies (the semantic relationships of the whole image). The high resolution layers are expected to add more details instead of global dependencies.</li>
+</ul>
+<h4 id="Example-of-Computing-Attention">Example of Computing Attention<a class="anchor-link" href="#Example-of-Computing-Attention">¶</a></h4><p>We use Scaled Dot-Product Attention as an example. Suppose the input feature is
+$$
+X \in \mathbb{R}^{N \times C}
+$$
+where:</p>
+<ul>
+<li>$N = H \times W$: the number of pixels (or latent tokens) after flattening;</li>
+<li>$C$: the channel dimension at each position.</li>
+</ul>
+<p>Linear transformations give Q, K, V:
+$$
+Q = X W_Q, \quad K = X W_K, \quad V = X W_V
+$$</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$W_Q, W_K, W_V$</td>
+<td>$C \times d$</td>
+<td>learned linear projection matrices</td>
+</tr>
+<tr>
+<td>$Q, K, V$</td>
+<td>$N \times d$</td>
+<td>query, key, and value vectors at each position</td>
+</tr>
+</tbody>
+</table>
+<p>The similarity matrix and attention weights:
+$$
+A = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)
+$$
+Element-wise form:
+$$
+S = \frac{QK^T}{\sqrt{d}}, \quad S_{ij} = \frac{q_i \cdot k_j}{\sqrt{d}} \quad \Rightarrow \quad
+A_{ij} = \frac{\exp(S_{ij})}{\sum_{m=1}^{N} \exp(S_{im})}
+$$</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$QK^T$</td>
+<td>$N \times N$</td>
+<td>similarity between every pair of positions</td>
+</tr>
+<tr>
+<td>$A$</td>
+<td>$N \times N$</td>
+<td>attention weights matrix, row-normalized</td>
+</tr>
+</tbody>
+</table>
+<p>Weighted sum to get the output:
+$$
+Y = A V, \quad Y_i = \sum_{j=1}^{N} A_{ij} V_j
+$$</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$V$</td>
+<td>$N \times d$</td>
+<td>value representation at each position</td>
+</tr>
+<tr>
+<td>$A V$</td>
+<td>$N \times d$</td>
+<td>global features for each query after attention</td>
+</tr>
+<tr>
+<td>$Y$</td>
+<td>$N \times d$</td>
+<td>self-attention output (reshape back to $C \times H \times W$)</td>
+</tr>
+</tbody>
+</table>
+<p>Generally, in the attention framework, Q means "what am I looking for," K means "what am I," and V means "what am I providing." In an LDM U-Net:</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>What it means in LDM U-Net</th>
+<th>Intuitive meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q (Query)</td>
+<td>A current pixel (latent location) "asks" the entire latent feature map: how should I adjust my noise prediction?</td>
+<td>Each position decides how to combine information from other positions</td>
+</tr>
+<tr>
+<td>K (Key)</td>
+<td>The feature signature of each pixel (latent location), representing its structure/semantics</td>
+<td>Indicates to others "what kind of feature am I"</td>
+</tr>
+<tr>
+<td>V (Value)</td>
+<td>The feature values each pixel offers for sharing (content others may use)</td>
+<td>What features others extract from me to update themselves</td>
+</tr>
+</tbody>
+</table>
+<p>Why does attention achieve "global semantic fusion"?</p>
+<ul>
+<li>$q_i \cdot k_j$: if position $i$ and $j$ have similar features (semantically related), the inner product is large;</li>
+<li>after softmax, $A_{ij}$ converts this similarity into a weight;</li>
+<li>the weighted sum $\sum_j A_{ij} v_j$ allows position $i$ to aggregate content from the entire map that is semantically related.</li>
+</ul>
+<p>In other words: each position's new representation $y_i$ is "I (the query) retrieve, from all positions (keys), the information (values) weighted by semantic similarity."</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4704ae50">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----$%5Cvarepsilon$-/-$x_0$-/-$v$-Prediction">--- $\varepsilon$ / $x_0$ / $v$ Prediction<a class="anchor-link" href="#----$%5Cvarepsilon$-/-$x_0$-/-$v$-Prediction">¶</a></h2><p>Recall that in the reverse process, we need to compute the posterior mean $\mu_\theta(\mathbf{x}_t, t)$ where
+$$
+p_\theta(\mathbf{x}_{t-1} \mid \mathbf{x}_t) = \mathcal{N}\left(\mathbf{x}_{t-1}; \mu_\theta(\mathbf{x}_t, t), \Sigma'\right)
+$$
+In the original DDPM, we use the fact that $\mu$ can be derived from $x_t$ and $x_0$, and since $x_0$ can be written as a function of $\varepsilon$, we use a network $\varepsilon_\theta(x_t,t)$ to predict $\varepsilon$ to derive $\mu$. In fact, we have three options for the network’s output, which are <strong>mathematically equivalent</strong> but differ in numerical stability during training.</p>
+<ol>
+<li><strong>$\varepsilon$-prediction</strong>：$\varepsilon_\theta(x_t,t) \rightarrow \hat\varepsilon$ (from original DDPM)</li>
+<li><strong>$x_0$-prediction</strong>：$x_{0,\theta}(x_t,t) \rightarrow \hat x_{0,\theta}$ (In the original DDPM paper (Ho et al., 2020, Sec. 3.2), the authors mentioned that the model could alternatively predict $x_0$, but they found it produced lower-quality samples compared to $\varepsilon$-prediction, so they adopted the latter as the main approach).</li>
+<li><strong>$v$-prediction</strong>: $v_\theta(x_t,t) \rightarrow \hat v$. Predicts $v$: a linear combination of $\varepsilon$ and $x_0$ (The v-prediction idea originates from Salimans &amp; Ho (2022) (Progressive Distillation), and it was popularized by Imagen (Saharia et al., 2022)).</li>
+</ol>
+<p>By the Gaussian Conditioning Formula, the posterious mean of $q(\mathbf{x}_{t-1} \mid \mathbf{x}_t)$ is
+$$
+\mu' = 
+\frac{\sqrt{\bar\alpha_{t-1}} \beta_t}{1 - \bar\alpha_t} \mathbf{x}_0 + \frac{\sqrt{\alpha_t}(1 - \bar\alpha_{t-1})}{1 - \bar\alpha_t} \mathbf{x}_t
+$$
+No matter which one of $\varepsilon$ / $x_0$ / $v$ we predict by the network, ultimately we use the predicted quantity to derive $\hat{\mathbf{x}}_0$ and plug in back to this formula to get $\mu_\theta(\mathbf{x}_t, t)$.</p>
+<p>Below we will discuss the three approaches separately:</p>
+<ul>
+<li>How to recover $\hat{\mathbf{x}}_0$, then plug $\hat{\mathbf{x}}_0$ into the formula to get $\mu_\theta(\mathbf{x}_t, t)$.</li>
+<li>What the loss function looks like, and a brief derivation of how it comes about.</li>
+<li>What are the advantages of using this prediction.</li>
+</ul>
+<h3 id="1.-$%5Cvarepsilon$-prediction">1. $\varepsilon$-prediction<a class="anchor-link" href="#1.-$%5Cvarepsilon$-prediction">¶</a></h3><p><strong>Network output</strong>: $\varepsilon_\theta(x_t,t) \rightarrow \hat\varepsilon$</p>
+<p><strong>Recover $\hat{\mathbf{x}}_0$ from $\hat\varepsilon$</strong>
+$$
+\hat x_0(x_t,t)=\frac{x_t-\sqrt{1-\bar\alpha_t}\hat\varepsilon}{\sqrt{\bar\alpha_t}}.
+$$</p>
+<p><strong>Directly substitute $\hat x_0$ into the posterior mean formula to get $\mu_\theta$</strong>
+$$
+\mu_\theta(x_t,t)=\frac{\sqrt{\bar\alpha_{t-1}}\beta_t}{1-\bar\alpha_t}\hat x_0
++\frac{\sqrt{\alpha_t}(1-\bar\alpha_{t-1})}{1-\bar\alpha_t}x_t.
+$$</p>
+<p><strong>Loss</strong>: $\mathcal L=\mathbb{E} \left[ \| \boldsymbol{\epsilon} - \hat{\boldsymbol{\epsilon}} \|^2 \right]$</p>
+<p><strong>Advantages</strong>: Historically the most used, formula is simple, training is stable.</p>
+<h3 id="2.-$x_0$-prediction">2. $x_0$-prediction<a class="anchor-link" href="#2.-$x_0$-prediction">¶</a></h3><p><strong>Network output</strong>: $x_{0,\theta}(x_t,t) \rightarrow \hat x_{0}$</p>
+<p><strong>Directly substitute $\hat x_0$ into the posterior mean formula to get $\mu_\theta$</strong>
+$$
+\mu_\theta(x_t,t)=\frac{\sqrt{\bar\alpha_{t-1}}\beta_t}{1-\bar\alpha_t}\hat x_0
++\frac{\sqrt{\alpha_t}(1-\bar\alpha_{t-1})}{1-\bar\alpha_t}x_t.
+$$</p>
+<p><strong>Loss</strong>: $\mathcal L=\mathbb E\left[\|x_0-\hat x_{0}\|^2\right]$ (Easily obtained by plugging $\mu_\theta(x_t,t)$ into $L_{t-1}$.)</p>
+<p><strong>Advantages</strong>: Directly targets the pixel space, which is convenient when combining with perceptual/discriminator losses.</p>
+<h3 id="3.-$v$-prediction">3. $v$-prediction<a class="anchor-link" href="#3.-$v$-prediction">¶</a></h3><p>Apply an <strong>orthogonal linear transformation</strong> (coefficients related to $t$) to $(x_0,\varepsilon)$:
+$$
+a_t=\sqrt{\bar\alpha_t},\quad b_t=\sqrt{1-\bar\alpha_t},\quad \Rightarrow \quad
+v_t = a_t\varepsilon - b_tx_0
+$$</p>
+<p><strong>Network output</strong>: $v_\theta(x_t,t) \rightarrow \hat v$</p>
+<p><strong>Recover $\hat x_0$ and $\hat\varepsilon$ from $\hat v$</strong>: Solve the system (Note $a_t^2+b_t^2=1$)
+$$
+\begin{cases}
+x_t = a_t x_0 + b_t \varepsilon, \\
+v_t = a_t \varepsilon - b_t x_0
+\end{cases}
+\quad 
+\Rightarrow
+\quad
+\begin{cases}
+\hat x_0=a_tx_t - b_t\hat v_\theta, \\
+\hat\varepsilon=b_tx_t + a_t\hat v_\theta
+\end{cases}
+$$</p>
+<p><strong>Directly substitute $\hat x_0$ into the posterior mean formula to get $\mu_\theta$</strong>
+$$
+\mu_\theta(x_t,t)=\frac{\sqrt{\bar\alpha_{t-1}}\beta_t}{1-\bar\alpha_t}[a_t x_t-b_t\hat v_\theta]
++\frac{\sqrt{\alpha_t}(1-\bar\alpha_{t-1})}{1-\bar\alpha_t}x_t
+$$</p>
+<p><strong>Loss</strong>: $\mathcal L=\mathbb E\left[\|v_t-\hat v\|^2\right]$ (Easily obtained by plugging $\mu_\theta(x_t,t)$ into $L_{t-1}$.)</p>
+<p><strong>Advantages</strong>: $(x_0,\varepsilon)$ are "rotated" so that gradients are more balanced during high/low SNR phases, leading to a trade-off between quality and controllability. Widely adopted by Imagen, Stable Diffusion v2+, etc.</p>
+<p>In practice, when using a neural network for estimation, the three methods all take the same inputs, namely $x_t$ and t. The only differences are in the network head (output) and the loss function: you regress either $\epsilon$, $x_0$, or $v$.</p>
+<p>In fact, during real training, if you already have an implementation and want to switch to a different prediction method (for numerical reasons, for example), you only need to change the output head and the loss target to the corresponding quantity. The posterior mean ($\mu$) can be computed using the relevant formula for each prediction type. All other training and sampling procedures stay the same.</p>
 </div>
 </div>
 </div>
