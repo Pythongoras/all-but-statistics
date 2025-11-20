@@ -8,7 +8,9 @@
 - [SoftmaxBackprop](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/1-BackpropAndMLP/SoftmaxBackprop.html)
 - [PerceptronActivationMLP](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/1-BackpropAndMLP/PerceptronActivationMLP.html)
 
-##### 2-Transformer
+##### 2-Transformers
+- [TransformersBasic](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/3-Transformers/TransformersBasic.html)
+- [BERT](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/3-Transformers/BERT.html)
 
 ##### 3-GenerativeModels
 - [GAN](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/3-GenerativeModels/GAN.html)
