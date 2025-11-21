@@ -8036,14 +8036,14 @@ Target:     [B, C, D, &lt;EOS&gt;]
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----nn.Transformer-Related-Class">--- <code>nn.Transformer</code> Related Class<a class="anchor-link" href="#----nn.Transformer-Related-Class">¶</a></h2><p>The key of implementation is the <code>nn.Transformer</code> module. 它是完整的 Encoder–Decoder Transformer，内部包含</p>
+<h2 id="----nn.Transformer-Related-Class">--- <code>nn.Transformer</code> Related Class<a class="anchor-link" href="#----nn.Transformer-Related-Class">¶</a></h2><p>The key component for implementation is the <code>nn.Transformer</code> module. It is a complete Encoder–Decoder Transformer, internally consisting of:</p>
 <ul>
-<li>Encoder：use <code>TransformerEncoderLayer</code>（self-attention）</li>
-<li>Decoder：use <code>TransformerDecoderLayer</code>（masked self-attention + cross-attention）
-所以 PyTorch 的 nn.Transformer 完整实现了包含 cross-attention 的标准 Transformer（Attention is All You Need）结构。</li>
+<li>Encoder: uses <code>TransformerEncoderLayer</code> (self-attention)</li>
+<li>Decoder: uses <code>TransformerDecoderLayer</code> (masked self-attention + cross-attention)
+Therefore, PyTorch’s nn.Transformer fully implements the standard Transformer architecture (as in “Attention Is All You Need”) with cross-attention.</li>
 </ul>
-<p>我们可以看到在<code>TransformerEncoderLayer</code> and <code>TransformerDecoderLayer</code>里面，并不单纯是一个multi-head att，而是multi-head att -&gt; ffn结构。actually in Attention Is All You Need, 原始 Transformer 的encoder, decoder每一层都是multi-head att -&gt; ffn. Attention 已经很强了，为什么还要在每层后面接一个 FFN？为什么不能直接再加一个 activation 就行了？
------Attention 本质上是一个“加权平均器”，只能重排信息和聚合信息，不是feature变换器。Multi-Head Attention 做的事情本质是根据注意力权重，对 feature 做加权求和，所以创造出的新feature是原有feature的一些linear combination。从linear algebra的角度来说，linear combination并不能使空间升维，所以Attention 不会创造新的特征空间。而ffn里面的linear layer是真的能改变特征空间维度，activation又让ffn整体的transformation变成了非线性，足以拟合复杂函数，整个特征空间都变成了一个新空间。</p>
+<p>We can see that in <code>TransformerEncoderLayer</code> and <code>TransformerDecoderLayer</code>, the structure is not just a multi-head attention; instead, it is a sequence of multi-head attention followed by a feedforward network (multi-head att -&gt; FFN). In fact, in the original “Attention Is All You Need” paper, each encoder and decoder layer in the Transformer is structured as multi-head attention followed by FFN. We may ask: Attention itself is already very powerful, so <strong>why do we still need to add an FFN after each layer?</strong> Why is it not enough to just add another activation?</p>
+<p>Attention is essentially a weighted average calculator: it can only reorder and aggregate information, but it is not a feature transformer. What multi-head attention essentially does is use attention weights to compute weighted sums of features, so the new features created are just linear combinations of the original features. From the perspective of linear algebra, linear combinations do not increase the dimensionality of the space, so <strong>attention does not create a new feature space</strong>. On the other hand, the linear layer in the FFN can truly change the feature space dimension, and with the activation function, the transformation done by the FFN becomes nonlinear and expressive enough to fit complex functions—completely transforming the feature space into a new one.</p>
 </div>
 </div>
 </div>
