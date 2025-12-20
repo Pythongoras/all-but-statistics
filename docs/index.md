@@ -1,6 +1,6 @@
 
 
-#### DeepLearning
+### DeepLearning
 
 ##### 1-BackpropAndMLP
 - [Backpropagation](https://pythongoras.github.io/all-but-statistics/5-DeepLearning/1-BackpropAndMLP/Backpropagation.html)
@@ -31,5 +31,5 @@
 
 
 
-#### Bandits
+### Bandits
 - [StochasticBandits](https://pythongoras.github.io/all-but-statistics/6-Bandits/StochasticBandits.html)
