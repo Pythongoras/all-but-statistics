@@ -33,3 +33,4 @@
 
 ### Bandits
 - [StochasticBandits](https://pythongoras.github.io/all-but-statistics/6-Bandits/StochasticBandits.html)
+- [AdversarialBandits](https://pythongoras.github.io/all-but-statistics/6-Bandits/AdversarialBandits.html)
