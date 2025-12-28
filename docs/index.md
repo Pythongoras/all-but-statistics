@@ -34,3 +34,9 @@
 ### Bandits
 - [StochasticBandits](https://pythongoras.github.io/all-but-statistics/6-Bandits/StochasticBandits.html)
 - [AdversarialBandits](https://pythongoras.github.io/all-but-statistics/6-Bandits/AdversarialBandits.html)
+
+
+
+
+### DynamicProgramming
+- [BellmanEquation](https://pythongoras.github.io/all-but-statistics/7-DynamicProgramming/BellmanEquation.html)
