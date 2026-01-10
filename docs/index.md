@@ -41,3 +41,5 @@
 ### DynamicProgramming
 - [MarkovDecisionProcess](https://pythongoras.github.io/all-but-statistics/7-DynamicProgramming/MarkovDecisionProcess.html)
 - [BellmanEquation](https://pythongoras.github.io/all-but-statistics/7-DynamicProgramming/BellmanEquation.html)
+- [PolicyIteration](https://pythongoras.github.io/all-but-statistics/7-DynamicProgramming/PolicyIteration.html)
+- [ValueIteration](https://pythongoras.github.io/all-but-statistics/7-DynamicProgramming/ValueIteration.html)

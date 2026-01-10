@@ -3,7 +3,7 @@
 <html lang="en">
 <head><meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>MarkovDecisionProcess</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<title>PolicyIteration</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 <style type="text/css">
     pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -7511,247 +7511,300 @@ a.anchor-link {
 <!-- End of mermaid configuration --></head>
 <body class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
 <main>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=8d11362f">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=0999939e">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<div align="center" style="font-size:40px;">Markov Decision Process</div>
-<p>Problem formulation, not solution. Can be compared with bandits:</p>
-<pre><code>Bandits (problem)        ⟶  UCB / TS / EXP3 (solution)
-MDP (problem)            ⟶  Stochastic DP / Approx DP / RL (solution)
-</code></pre>
-<p>The reason we dedicate a separate set of notes to Markov Decision Processes is because understanding them thoroughly is extremely important. MDPs provide the mathematical foundation and a unified language for all "sequential decision-making algorithms"—DP, RL, and Planning all share this modeling approach.</p>
-<p>"Given an MDP, different assumptions about what is known lead to different solution paradigms."</p>
+<div align="center" style="font-size:40px;">Policy Iteration</div>
+<p>Solving Bellman equations directly via matrix inversion is often too expensive. Instead, we use iterative methods: policy iteration and value iteration. This note focuses on policy iteration; value iteration will be discussed in the next note.</p>
+<p>Policy Iteration simply repeats two steps:</p>
+<ol>
+<li>Evaluate the current policy (Policy Evaluation)</li>
+<li>For each state, choose a better action (Policy Improvement / Greedification)</li>
+</ol>
+<p>Continue until the policy no longer changes ⇒ Obtain the optimal policy $\pi^*$.</p>
 <p>Takeaways:</p>
 <ol>
-<li>What are the five components of the MDP five-tuple?</li>
-<li>As a turn-based game, what is the main difference between MDP and bandits?</li>
-<li>Is a bandit equivalent to a one-state MDP? Write out the state transition probabilities for a bandit.</li>
-<li>Why must we use discounted returns in a continuing task?</li>
-<li>Can we know $\pi^*$ if we know $q^*$? How about if we know $v^*$?</li>
-<li>What are the three main learning objectives of MDP?</li>
+<li>What is the expression of <strong>Bellman expectation backup</strong>?</li>
+<li>In policy iteration, if the policy is unchanged after the greedification step, what does this mean?</li>
+<li>When GPI converges, does it converge to the optimum?</li>
+<li>What is the difference between policy iteration and value iteration in terms of evaluation granularity?</li>
 </ol>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=07c2451d">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=f69b91e0">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----The-Five-Tuple-Definition-of-an-MDP">--- The Five-Tuple Definition of an MDP<a class="anchor-link" href="#----The-Five-Tuple-Definition-of-an-MDP">¶</a></h2><blockquote>
-<p>💡 <strong>Note:</strong>
-In theoretical studies, we usually assume the <strong>MDP is finite</strong>, which ensures that the Bellman equation has a unique solution, an optimal policy exists, and dynamic programming algorithms converge.
-In real-world applications (such as deep reinforcement learning), however, the state and action spaces are often <strong>infinite or continuous</strong>.
-The finite MDP serves as the theoretical foundation for analysis and teaching, even though real-world RL problems are usually infinite.</p>
-<p>Regardless of whether the MDP is finite** or infinite, both share the same five-tuple structure
-$(\mathcal{S}, \mathcal{A}, T, r, \gamma)$;
-the only difference lies in whether the <strong>state space</strong> and <strong>action space</strong> are finite or infinite.</p>
+<h2 id="----Step-1:-Policy-Evaluation">--- Step 1: Policy Evaluation<a class="anchor-link" href="#----Step-1:-Policy-Evaluation">¶</a></h2><p>Recall the Bellman Expectation Equation for the state value function is
+$$
+v_\pi(s) = \sum_a \pi(a|s)
+\left[
+r(s,a) + \gamma \sum_{s'} p(s'|s,a) v_\pi(s')
+\right]
+$$
+To get $v_\pi$, we may solve this linear equation system by computing closed-form solutions. Alternatively, we can use the iterative policy evaluation algorithm illustrated below.</p>
+<h4 id="Iterative-Policy-Evaluation-Algorithm">Iterative Policy Evaluation Algorithm<a class="anchor-link" href="#Iterative-Policy-Evaluation-Algorithm">¶</a></h4><p>Initialization:
+$$
+v_0(s) = \text{any value, usually 0} \quad \forall s
+$$
+Synchronous backup:
+$$
+v_{k+1}(s) =
+\sum_a \pi(a|s)
+\left[
+r(s,a) + \gamma \sum_{s'} p(s'|s,a) v_k(s')
+\right]
+$$</p>
+<blockquote>
+<p>Here, "synchronous" means that in the $k$-th iteration, the updates for all states $s$ are performed using only $v_k$, and after all updates are finished, we obtain $v_{k+1}$ all at once. One iteration is also called a <strong>sweep</strong>, which means completely traversing all the states once.</p>
+<p>In contrast, in <strong>Asynchronous Backup</strong>, there is no globally consistent $v_k$ for all states. At the same time, different states may have been updated a different number of times—some states may contain more up-to-date information from more frequent updates, while others may still be using older values.</p>
 </blockquote>
-<p>The five-tuple is the modeling language of an MDP, not an algorithmic assumption. Any solution must first be described using these five components.</p>
-<p>A Markov Decision Process is defined by a five-tuple:
+<p>Stopping criterion:
 $$
-\mathcal{M} = (\mathcal{S}, \mathcal{A}, T, r, \gamma)
-$$
-where:</p>
+\max_s |v_{k+1}(s) - v_k(s)| &lt; \varepsilon
+$$</p>
+<h4 id="Why-does-the-algorithm-converge-to-the-unique-$v_%5Cpi$?">Why does the algorithm converge to the unique $v_\pi$?<a class="anchor-link" href="#Why-does-the-algorithm-converge-to-the-unique-$v_%5Cpi$?">¶</a></h4><p>Useful facts:</p>
+<ul>
+<li><p>What "distance" do we use to measure how close two value functions are?
+$$|v'-v|_{\infty}=\max_{s\in\mathcal S}|v'(s)-v(s)|$$
+Intuitively: on the worst-case state, how different are the two estimates.</p>
+</li>
+<li><p>Definition of the "Policy Evaluation update operator" (<strong>Bellman expectation operator</strong>):
+$$(F_\pi v)(s) =\sum_a \pi(a|s)\left[r(s,a)+\gamma\sum_{s'}p(s'|s,a)v(s')\right]$$
+The iterative evaluation is:
+$$v_{k+1}=F_\pi(v_k)$$</p>
+</li>
+<li><p>$F_\pi$ is a $\gamma$-contraction: $|F_\pi(u)-F_\pi(v)|_{\infty} \le \gamma |u-v|_{\infty}$</p>
+<blockquote>
+<p>Proof:</p>
 <ol>
-<li><p>State Space $\mathcal{S}$: The set of all possible environment states. $s_t \in \mathcal{S}$ denotes the concrete state at time $t$.</p>
-<p>A state should be a sufficient summary of the past. We should be able to throw away the history once state is known, i.e., it should have the <strong>Markov Property</strong>:
+<li><p>Write out the difference; the reward terms cancel:
 $$
- \mathbb{P}\!\left[R_{t+1}=r,\,S_{t+1}=s' \mid S_0,A_0,R_1,\ldots,A_{t-1},R_t,S_t,A_t\right]
- =
- \mathbb{P}\!\left[R_{t+1}=r,\,S_{t+1}=s' \mid S_t,A_t\right]
- $$</p>
+(F_\pi u)(s)-(F_\pi v)(s)
+=\sum_a\pi(a|s)\gamma\sum_{s'}p(s'|s,a)\big(u(s')-v(s')\big)
+$$</p>
 </li>
-<li><p>Action Space $\mathcal{A}$: The set of actions the agent can take, which depends on the state. $a_t \in \mathcal{A}(s_t)$ denotes the action taken at state $s_t$.</p>
+<li><p>Take the absolute value and upper bound:
+$$
+|(F_\pi u)(s)-(F_\pi v)(s)|
+\le \gamma \sum_a\pi(a|s)\sum_{s'}p(s'|s,a)|u(s')-v(s')|
+$$</p>
 </li>
-<li><p>State Transition $T(s' \mid s, a)$: The probability of transitioning to state $s'$ and get reward $r$ after taking action $a$ in state $s$.</p>
-<p>$$T(s', r \mid s, a) = \mathbb{P}(S_{t+1} = s', R_{t+1} = r \mid S_t = s, A_t = a)$$
-This equation expresses the Markov property we mentioned before.</p>
-<blockquote>
-<p>Notice that sometimes $r$ is deterministic, where the state trasition can also be written as $T(s' \mid s, a)$.</p>
-</blockquote>
+<li><p>By the definition of the $\infty$-norm: for all $s'$, $|u(s')-v(s')|\le |u-v|_\infty$
+$$
+|(F_\pi u)(s)-(F_\pi v)(s)|
+\le \gamma \sum_a\pi(a|s)\sum_{s'}p(s'|s,a)|u-v|_\infty
+$$</p>
 </li>
-<li><p>Reward Function $r(s, a, s')$: The immediate reward received after the state transition or after taking an action. Here $s'$ is the resulting state after the transition. The reward may be a random variable, and its expectation is given by $r$. For example, a simple one</p>
-<p>$$r(s,a,s') = \mathbb{E}\!\left[ R_{t+1} \mid S_t = s,\; A_t = a ,\; S_{t+1} = s'\right]$$</p>
-<blockquote>
-<p>Notice that $r$ does not always depends on $s'$, where the reward function can also be written as $r(s, a)$.</p>
-</blockquote>
+<li><p>The probabilities sum to 1 $(\sum_a\pi(a|s)=1$, $\sum_{s'}p(s'|s,a)=1)$:
+$$
+|(F_\pi u)(s)-(F_\pi v)(s)| \le \gamma|u-v|_\infty
+$$</p>
 </li>
-<li><p>Discount Factor $\gamma \in [0,1]$: Controls the importance of future rewards. $\gamma = 0$ considers only immediate rewards, while $\gamma \to 1$ emphasizes long-term returns.</p>
+<li><p>Take the maximum over all $s$:
+$$
+|F_\pi(u)-F_\pi(v)|_\infty \le \gamma|u-v|_\infty
+$$</p>
 </li>
 </ol>
+</blockquote>
+</li>
+</ul>
+<p>Policy Evaluation works because the Bellman expectation backup operator $F_\pi$ is a $\gamma$-contraction under the $|\cdot|_\infty$ norm. Therefore, according to the contraction mapping theorem, iterating from any initial value will always converge to the unique fixed point $v_\pi$.</p>
+<p><strong>Definition (Contraction).</strong>
+Let $F$ be an operator on a normed vector space $(\mathcal V,|\cdot|)$.
+$F$ is called a <strong>$\gamma$-contraction</strong>, for $0&lt;\gamma&lt;1$, if for all $x,y \in \mathcal V$,
+$$
+|F(x) - F(y)| \le \gamma |x - y|
+$$</p>
+<p><strong>Theorem (Contraction Mapping Theorem).</strong>
+For a $\gamma$-contraction $F$ on a <strong>complete normed vector space</strong> $\mathcal V$:</p>
+<ol>
+<li><p>$F$ has a <strong>unique fixed point</strong> $x^* \in \mathcal V$, i.e.
+$$
+F(x^*) = x^*.
+$$</p>
+</li>
+<li><p>For any initial point $x_0 \in \mathcal V$, the sequence defined by
+$$
+x_{k+1} = F(x_k)
+$$
+<strong>converges to the unique fixed point</strong> $x^*$.</p>
+</li>
+<li><p>The convergence is <strong>linear</strong>, with rate $\gamma$.</p>
+</li>
+</ol>
+<h4 id="Complexity">Complexity<a class="anchor-link" href="#Complexity">¶</a></h4><p>Under the following three assumptions, we can derive the complexity of value iteration:</p>
+<ol>
+<li>The transition is dense: for every $(s,a)$, any $s'$ is possible</li>
+<li>The model is explicit: $P(s'|s,a)$ is known and can be accessed in $\mathcal{O}(1)$ time</li>
+<li>Synchronous sweep: every iteration must update all states</li>
+</ol>
+<p>Complexity analysis:</p>
+<ul>
+<li><p>For a single state $s$:</p>
+<ol>
+<li>Enumerate all actions to compute expectation: $\rightarrow$ $m$ times</li>
+<li>For each action, compute the expectation $\sum_{s'} P(s'|s,a)v(s')$ by summing over all possible $s'$: $\rightarrow$ $n$ times</li>
+</ol>
+<p>Therefore: the cost of a single update for one state = $O(mn)$</p>
+</li>
+<li><p>Each iteration performs a sweep over all $n$ states</p>
+</li>
+</ul>
+<p>Therefore:
+$$
+\text{cost per iteration} = n \times O(mn) = O(mn^2)
+$$</p>
 <blockquote>
-<p>In reinforcement learning and dynamic programming, lowercase letters usually denote concrete values or true objects, e.g. states $s$, actions $a$, value functions $v_\pi, q_\pi$; uppercase letters usually denote random variables or estimators in algorithms, such as random state $S_t$, random action $A_t$, and learned values $V, Q$. A standard and clear convention in the field is: uppercase = random variable / learned estimate, lowercase = realized value or ground truth.</p>
+<p>The real bottleneck is the $n^2$ term. Under this quadratic complexity, synchronous DP in practice can usually only handle state spaces of size $n \approx 10^3 \sim 10^4$. When $n$ reaches $10^5$, the time and memory requirements become unacceptable. But in practice, classical DP may need to be applied to problems at the scale of millions of states, which is why we need other update methods such as asynchronous value / policy iteration.</p>
+<p>Also, TD / Q-learning uses sample-based, local, asynchronous updates to actively avoid enumerating all successor states and thus escape the $n^2$ bottleneck. This is the fundamental reason why they can scale to very large state spaces.</p>
 </blockquote>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=65b9c704">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=9a6d99c4">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----Markov-Decision-Process-As-A-Turn-Based-Game">--- Markov Decision Process As A Turn-Based Game<a class="anchor-link" href="#----Markov-Decision-Process-As-A-Turn-Based-Game">¶</a></h2><p>In the bandits section, we abstracted bandits as a turn-based game. Similarly, an MDP is also a turn-based game much like bandits. If the Bandit Problem describes a "turn-based game where each round is independent," then the Markov Decision Process (MDP) describes a "turn-based game where the situation in each round can change based on your previous actions". In this setting, each round is no longer independent. The basic interaction pattern (aligned with the form of bandits) is:</p>
-<ol>
-<li>Given the set of available actions $\mathcal{A}(S_t)$ at the current state $S_t \in \mathcal{S}$</li>
-<li>Choose an action $A_t$</li>
-<li>The environment transitions to a new state according to the state transition probability $T(S_{t+1}\mid S_t, A_t)$</li>
-<li>Simultaneously, receive a reward $R_t = r(S_t, A_t, S_{t+1})$</li>
-<li>The agent updates its policy</li>
-<li>Move to the next round</li>
-</ol>
-<p><strong>Objective</strong>: Maximize expected cumulative reward (or minimize regret).</p>
-<blockquote>
-<p>Similarities between MDPs and bandits:</p>
-<ul>
-<li>From the perspective of interaction, both follow: observe → choose → receive feedback → update → next round</li>
-<li>The learning objective is to maximize expected cumulative return (or minimize regret)</li>
-<li>In every step, an action is selected to maximize cumulative return</li>
-</ul>
-<p>Key differences between MDPs and bandits:</p>
-<ul>
-<li>There is an additional step (step 3): state transition. The set of available actions each round depends on the state $\mathcal{A}(S_t)$, so the interaction pattern in the next round may change depending on the action chosen in the previous round.</li>
-</ul>
-</blockquote>
-<p><strong>Looking at MDP from the Two Core Assumptions of Bandit:</strong></p>
-<ol>
-<li><p>Partial Feedback ✅</p>
-<p>In an MDP, at each step you can only observe the action you took, the reward you received, and the next state you transitioned to. You can't see "what would have happened if you had selected a different action"—just like in bandits.</p>
-</li>
-<li><p>Stateless ❌</p>
-<p>In an MDP, your action directly determines the state transition. The current action affects: the state you will be in in the future, the set of actions you can choose from in the future, and the distribution of future rewards.</p>
-<blockquote>
-<p>In contextual bandits, the environment changes, but not due to your actions—it changes independently of the agent.</p>
-</blockquote>
-</li>
-</ol>
-<h3 id="Bandit-As-A-One-State-MDP">Bandit As A One-State MDP<a class="anchor-link" href="#Bandit-As-A-One-State-MDP">¶</a></h3><p>Bandit is equivalent to an MDP where:</p>
-<ul>
-<li>There is only one state $s^*$ (or the state contains no information)</li>
-<li>The transition is always identical: $T(S_{t+1}=s^* \mid S_t=s^*, A_t)=1$</li>
-<li>The reward depends only on the action (and possibly exogenous context): $R_t = r(A_t)$ or $R_t = r(A_t, C_t)$</li>
-</ul>
-<p>This is a <strong>one-state MDP: the state is never changed by actions</strong>. $A_t$ does not enter the environment's evolution equation, so the way the next $C_{t+1}$ / $\mathcal{A}_{t+1}$ / reward mechanism is generated is independent of $A_t$.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=0add94e1">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----Learning-Objective-of-MDP">--- Learning Objective of MDP<a class="anchor-link" href="#----Learning-Objective-of-MDP">¶</a></h2><p>Based on the MDP five-tuple, we can define the following key quantities:</p>
-<ul>
-<li><p>Return $G_t$: The cumulative (discounted) reward starting from time $t$. The MDP objective function is based on the expected return.</p>
-<ul>
-<li>Episodic task: The interaction will naturally end (has a terminal state), such as playing a game, a chess match, or completing a maze. Use simple summation:
-$$G_t = R_{t+1} + \cdots + R_T$$</li>
-<li>Continuing task: The interaction does not naturally terminate (keeps going), such as stock trading, server scheduling, or temperature control systems. Use discounted return to ensure $G_t$ converges:
+<h2 id="----Step-2:-Policy-Improvement">--- Step 2: Policy Improvement<a class="anchor-link" href="#----Step-2:-Policy-Improvement">¶</a></h2><p>As a prerequisite, we need to recall the definition of the Bellman Expectation Equation for state-action value $q_\pi$, and given the relationship $v_\pi(s) = \sum_a \pi(a|s) q_\pi(s,a)$, we can rewrite it as
 $$
-  G_t = R_{t+1} + \gamma R_{t+2} + ... = \sum_{k=0}^{\infty} \gamma^k r_{t+k+1}
+\begin{align}
+q_\pi(s,a) 
+&amp; = \sum_{s', r} p(s', r \mid s, a)\Bigl[r + \gamma \sum_{a'} \pi(a'|s') q_\pi(s', a')\Bigr] \nonumber\newline
+&amp; = \sum_{s', r} p(s', r \mid s, a)\Bigl[r + \gamma v_\pi(s')\Bigr] \nonumber\newline
+&amp; = r(s,a) + \gamma \sum_{s'} p(s'|s,a) v_\pi(s') \nonumber
+\end{align}
+$$
+where $r(s,a) = \sum_{s', r} p(s', r \mid s, a) r$. And since $v_\pi(s')$ is independent of $r$, we can sum over $r$ to get $\sum_{s', r} p(s', r \mid s, a) v_\pi(s') = \sum_{s'} p(s'|s,a) v_\pi(s')$.</p>
+<h4 id="Policy-Improvement-Theorem">Policy Improvement Theorem<a class="anchor-link" href="#Policy-Improvement-Theorem">¶</a></h4><p>Do the <strong>greedification for all states</strong> to get a new policy $\pi'$ that is greedy w.r.t. $q_\pi(s, a)$:
+$$\pi'(s) = \arg\max_a q_\pi(s,a)$$
+Then we have
+$$v_{\pi'}(s) \ge v_\pi(s), \quad \forall s$$
+That means, the improved policy $\pi'$ is no worse than the original policy $\pi$.</p>
+<blockquote>
+<p>Proof:</p>
+<ul>
+<li><p>A trivial inequality showing max ≥ average:
+$$q_\pi(s,\pi'(s))=\max_a q_\pi(s,a)\ge \sum_a\pi(a|s)q_\pi(s,a)=v_\pi(s)$$
+This also implies that, in the sense of being evaluated by the "old value function", new actions are no worse than the old policy.</p>
+</li>
+<li><p>At each step, we replace the original action with the optimal action according to the old policy $\pi$; this does not decrease the value in the short term, and in the long run the accumulation implies the overall value does not decrease:</p>
+<ol>
+<li>By the definition of state-action value function $q$:
+$$
+v_\pi(s)
+\le q_\pi(s,\pi'(s))
+= \mathbb{E}[R_{t+1} + \gamma v_\pi(S_{t+1}) \mid S_t=s, A_t=\pi'(s)]
+$$</li>
+<li>Again, use the trivial inequality to replace $v_\pi(S_{t+1}) \le q_\pi(S_{t+1}, \pi'(S_{t+1}))$
+$$
+\begin{align}
+v_\pi(s) 
+&amp; \le \mathbb E \left[R_{t+1}+\gamma q_\pi(S_{t+1},\pi'(S_{t+1})) \mid S_t=s,\ A_t=\pi'(s) \right] \nonumber\newline
+&amp; = \mathbb E \Big[ R_{t+1} + \gamma \mathbb E \left[ R_{t+2}+\gamma v_\pi(S_{t+2}) \mid S_{t+1},\ A_{t+1}=\pi'(S_{t+1}) \right] \Big| S_t=s,\ A_t=\pi'(s) \Big] \nonumber\newline
+&amp; = \mathbb E \left[R_{t+1}+\gamma R_{t+2}+\gamma^2 v_\pi(S_{t+2}) \mid S_t=s,\ A_t=\pi'(s) \right] \nonumber
+\end{align}
+$$
+The last step used law of total expectation $\mathbb E \left[\mathbb E[X \mid Y,Z]\mid Z\right] = \mathbb E[X \mid Z]$.</li>
+<li>Recursive unrolling (pattern repeats)
+$$
+v_\pi(s) \le \mathbb E \left[R_{t+1} + \gamma R_{t+2} + \gamma^2 R_{t+3} + \cdots \mid S_t=s,\ A_t=\pi'(s) \right] = v_{\pi'}(s)
+$$</li>
+</ol>
+</li>
+</ul>
+</blockquote>
+<h4 id="Policy-Iteration-Algorithm">Policy Iteration Algorithm<a class="anchor-link" href="#Policy-Iteration-Algorithm">¶</a></h4><div class="highlight"><pre><span></span><span class="n">Initialize</span><span class="w"> </span><span class="n">π</span><span class="w"> </span><span class="n">arbitrarily</span>
+<span class="n">repeat:</span>
+<span class="w">    </span><span class="c1"># Policy Evaluation</span>
+<span class="w">    </span><span class="n">compute</span><span class="w"> </span><span class="n">v_π</span><span class="w"> </span><span class="p">(</span><span class="n">approximately</span><span class="p">)</span>
+
+<span class="w">    </span><span class="c1"># Policy Improvement</span>
+<span class="w">    </span><span class="n">policy_stable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">True</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">S:</span>
+<span class="w">        </span><span class="n">old_action</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+<span class="w">        </span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">argmax_a</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="n">r</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">γ</span><span class="w"> </span><span class="n">Σ_</span><span class="p">{</span><span class="n">s</span><span class="s">'} p(s'</span><span class="o">|</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="n">v_π</span><span class="p">(</span><span class="n">s</span><span class="err">'</span><span class="p">)</span><span class="w"> </span><span class="p">]</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">old_action</span><span class="w"> </span><span class="err">≠</span><span class="w"> </span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">            </span><span class="n">policy_stable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">False</span>
+
+<span class="k">until</span><span class="w"> </span><span class="n">policy_stable</span>
+<span class="k">return</span><span class="w"> </span><span class="n">π</span><span class="o">*</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="o">*</span>
+</pre></div>
+<h4 id="Convergence-and-Optimality-Criteria">Convergence and Optimality Criteria<a class="anchor-link" href="#Convergence-and-Optimality-Criteria">¶</a></h4><ul>
+<li><p>When to stop?</p>
+<p>If the policy does not change after greedification, we have
+$$
+  \begin{align}
+  v_\pi(s) 
+  &amp; = \max_a q_\pi(s,a) \nonumber\newline
+  &amp; = \max_a \left[ r(s,a) + \gamma \sum_{s'} p(s'|s,a) v_\pi(s') \right] \nonumber\newline
+  \end{align}
   $$
-Also it's easy to see $G_t = R_{t+1} + \gamma G_{t+1}$.</li>
-</ul>
+This is exactly the Bellman Optimality Equation. Thus, $v_\pi = v^*$ and $\pi = \pi^*$.</p>
 </li>
-<li><p>Policy $\pi$: A distribution over actions given states. It fully defines the behavior of the learner. It is updated during the learning process, but should be stationary (time-independent, i.e. $\mathbb{P}(A_t = a \mid S_t = s) = \mathbb{P}(A_{t'} = a \mid S_{t'} = s)$).</p>
-<ul>
-<li>Stochastic policy: $\pi(a \mid s) = \mathbb{P}(A_t = a \mid S_t = s)$</li>
-<li>Deterministic policy: $\pi(s) = a$ with probability 1.</li>
-</ul>
-</li>
-<li><p>Value Functions: Expected returns.</p>
-<ul>
-<li>State value function: Under policy $\pi$, the cumulative expected return starting from state $s$. It <strong>measures the goodness of a state</strong>.
-$$v_\pi(s) = \mathbb{E}_\pi [G_t \mid S_t = s]$$</li>
-<li>Action value function: Under policy $\pi$, the cumulative expected return starting from state $s$ and taking action $a$. It <strong>measures the goodness of a state-action pair</strong>.
-$$q_\pi(s, a) = \mathbb{E}_\pi [G_t \mid S_t = s, A_t = a]$$</li>
-</ul>
-</li>
-<li><p>Optimal Value Functions: Best achievable expected returns.</p>
-<ul>
-<li>Optimal state-value function: The maximum cumulative expected return starting from state $s$ over all policies. It <strong>measures the best possible goodness of a state</strong>.
-$$v^*(s) = \max_\pi v_\pi(s)$$</li>
-<li>Optimal action-value function: The maximum cumulative expected return starting from state $s$ and action $a$ over all policies. It <strong>measures the best possible goodness of a state-action pair</strong>.
-$$q^*(s,a) = \max_\pi q_\pi(s,a)$$</li>
-</ul>
-</li>
-<li><p>Optimal policy:
+<li><p>Why is optimality guaranteed?</p>
+<p>By the policy improvement theorem
 $$
-  \pi^* = \arg\max_\pi \mathbb{E}_\pi [G_0]
+  v_{\pi_{k+1}}(s)\ge v_{\pi_k}(s)\quad \forall s
   $$
-The optimal policy is usually not unique; any policy that achieves the highest expected return is considered optimal.</p>
+So the value function is monotonically non-decreasing.</p>
+<p>In a finite MDP, the number of deterministic policies is finite $(|\mathcal A|^{|\mathcal S|})$, and each improvement step never decreases performance, and typically strictly improves it. Therefore, infinite strict improvement is impossible and the process will eventually reach a policy-stable point.</p>
+<p>Basically, a bounded monotone increasing sequence should converge.</p>
 </li>
 </ul>
-<blockquote>
-<p>Why the value functions are useful? The relationship between the optimal policy $\pi^*$ and $q^*$, $v^*$:</p>
-<ul>
-<li>$\pi^*$ is <strong>greedy</strong> with respect to $q^*$. In state $s$, if you want to maximize total return, you should of course choose the action with the highest $q^*(s,a)$. Therefore, the optimal policy is
-$$\pi^*(s) = \arg\max_a q^*(s,a)$$</li>
-<li>If you only know $v^*$, you also need the environment dynamics to derive $q^*$, and then obtain $\pi^*$.
-By definition, $q^*(s,a)$ is the expected return obtained by taking action $a$ in state $s$ and then following optimal behavior. After one transition, the agent receives reward $r$ and moves to next state $s'$. Therefore (we'll see in the Bellman Equation notes that this is actually Bellman Optimality Equation),
-$$q^*(s,a) = \mathbb{E}[r + \gamma v^*(s') \mid s,a] = \sum_{s',r} p(s',r|s,a)\bigl(r + \gamma v^*(s')\bigr)$$
-accordingly
-$$\pi^*(s) = \arg\max_a \sum_{s',r} p(s',r|s,a)\bigl(r + \gamma v^*(s')\bigr)$$</li>
-</ul>
-</blockquote>
-<h3 id="Learning-Objectives-of-MDP">Learning Objectives of MDP<a class="anchor-link" href="#Learning-Objectives-of-MDP">¶</a></h3><p>In the MDP framework, there are three main objectives we might pursue:</p>
-<ol>
-<li><p>Evaluating a given policy (prediction)</p>
-<p>Given an MDP $(\mathcal S, \mathcal A, T, r, \gamma)$ and a policy $\pi(a|s)$, the goal is to find the state-value function $v_{\pi}$ or action-value function $q_{\pi}$. That is, “What is the long-term expected return if we always follow this policy?”</p>
-<p>Example: Evaluating the performance of a "beginner player policy" in a maze.</p>
-<ul>
-<li>Policy (cannot be changed): at each intersection, 50% chance to go left, 50% to go right.</li>
-<li>All you want to know is: "If you always follow this strategy, what is the average score you will achieve?"</li>
-<li>Output: The state-value function $v_{\pi}$ for each position.</li>
-</ul>
-<blockquote>
-<p>In industry systems, the ultimate goal is decision-making; Prediction is not for making decisions but is rather a tool for evaluation, so it rarely exists as a final product. Its main purpose is to support control and learning: it serves as a sub-problem of planning/control and as a source of training signal for RL.</p>
-</blockquote>
-</li>
-<li><p>Finding the optimal policy (optimal control / planning)</p>
-<p>Given an MDP $(\mathcal S, \mathcal A, T, r, \gamma)$, the goal is to find $\pi^*$.</p>
-<p>Example: Solving a board game with known rules.</p>
-<ul>
-<li>You know the winning/losing rules and all possible policies.</li>
-<li>You just want to know: "What is the best move in each situation?" In other words, which policy achieves the highest state value in each state?</li>
-<li>Output: The optimal policy $\pi^*$ and the corresponding $v^*$, $q^*$.</li>
-</ul>
-</li>
-<li><p>Learning via interaction when the environment is unknown (learning / RL)</p>
-<p>Given an MDP $(\mathcal S, \mathcal A, T, r, \gamma)$ with <strong>unknown $T$ and $r$</strong>, the objective is to find $\pi^*$ (usually aiming for an approximately optimal policy).</p>
-<p>Example: Teaching a robot to walk on unknown terrain.</p>
-<ul>
-<li>The environmental rules are unknown: you do not know which actions will move forward, fall, or cause damage, and must rely on trial-and-error interaction with the environment.</li>
-<li>During learning, keep updating the state-value function / action-value function / policy.</li>
-<li>Output: a policy $\pi$ learned through interaction (ideally close to $\pi^*$), and its corresponding $v$ or $q$.</li>
-</ul>
-<blockquote>
-<p>Learning combines prediction and control: when the model is unknown, you estimate value functions and improve policy at the same time.</p>
-</blockquote>
-</li>
-</ol>
-<blockquote>
-<p>An intuitive analogy</p>
-<p>Planning</p>
-<ul>
-<li>You have: a complete map and the travel time for each road</li>
-<li>Approach: Calculate the shortest path. You can "simulate it in your mind" and compute it exactly.</li>
-</ul>
-<p>Learning</p>
-<ul>
-<li>You only see: one step at a time as you go</li>
-<li>Approach: Keep trying and continuously update your experience</li>
-</ul>
-</blockquote>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=9042e610">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----Generalized-Policy-Iteration">--- Generalized Policy Iteration<a class="anchor-link" href="#----Generalized-Policy-Iteration">¶</a></h2><p>Generalized Policy Iteration (GPI): <strong>any interleaving of policy evaluation and policy improvement</strong>, independent of their granularity.
+Actually, the other iteration method - <strong>value iteration</strong> can be viewed as GPI where evaluation is truncated to one step and improvement is implicit.
+Also, all RL methods are a form of GPI.</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Evaluation</th>
+<th>Improvement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Policy Iteration</td>
+<td>Full / Multi-step</td>
+<td>Greedy</td>
+</tr>
+<tr>
+<td>Value Iteration</td>
+<td>1-step</td>
+<td>Greedy at each step</td>
+</tr>
+<tr>
+<td>TD / Q-learning</td>
+<td>Approximate</td>
+<td>Implicit</td>
+</tr>
+</tbody>
+</table>
+<h4 id="When-GPI-converges,-does-it-converge-to-the-optimum?">When GPI converges, does it converge to the optimum?<a class="anchor-link" href="#When-GPI-converges,-does-it-converge-to-the-optimum?">¶</a></h4><p>Answer: Yes — under the standard assumptions.</p>
+<p>Reasoning: Policy improvement is monotonic. Regardless the frequency of doing policy improvement, as long as the policy is stable, the limit must satisfy the Bellman optimality equation. Notice that Bellman optimality operator is a contraction (like Bellman expectation operator), so by the contraction mapping theorem, the solution to the Bellman optimality equation is unique. Thus the fixed point for GPI must be $(v^*, \pi^*)$.</p>
+<p>Conclusion: GPI may or may not converge, but if it does converge, it converges to the optimal solution.</p>
 </div>
 </div>
 </div>

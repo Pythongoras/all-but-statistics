@@ -3,7 +3,7 @@
 <html lang="en">
 <head><meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>MarkovDecisionProcess</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<title>BellmanEquations</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 <style type="text/css">
     pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -7511,247 +7511,240 @@ a.anchor-link {
 <!-- End of mermaid configuration --></head>
 <body class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
 <main>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=8d11362f">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=46e69a85">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<div align="center" style="font-size:40px;">Markov Decision Process</div>
-<p>Problem formulation, not solution. Can be compared with bandits:</p>
-<pre><code>Bandits (problem)        ⟶  UCB / TS / EXP3 (solution)
-MDP (problem)            ⟶  Stochastic DP / Approx DP / RL (solution)
-</code></pre>
-<p>The reason we dedicate a separate set of notes to Markov Decision Processes is because understanding them thoroughly is extremely important. MDPs provide the mathematical foundation and a unified language for all "sequential decision-making algorithms"—DP, RL, and Planning all share this modeling approach.</p>
-<p>"Given an MDP, different assumptions about what is known lead to different solution paradigms."</p>
+<div align="center" style="font-size:40px;">Bellman Equations</div>
 <p>Takeaways:</p>
 <ol>
-<li>What are the five components of the MDP five-tuple?</li>
-<li>As a turn-based game, what is the main difference between MDP and bandits?</li>
-<li>Is a bandit equivalent to a one-state MDP? Write out the state transition probabilities for a bandit.</li>
-<li>Why must we use discounted returns in a continuing task?</li>
-<li>Can we know $\pi^*$ if we know $q^*$? How about if we know $v^*$?</li>
-<li>What are the three main learning objectives of MDP?</li>
+<li>What makes Bellman Optimality Equations is a system of non-linear equations?</li>
+<li>Does Bellman Expectation Equations have a closed-form solution?</li>
+<li>Does Bellman Optimality Equations have a closed-form solution?</li>
 </ol>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=07c2451d">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=b44c498f">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----The-Five-Tuple-Definition-of-an-MDP">--- The Five-Tuple Definition of an MDP<a class="anchor-link" href="#----The-Five-Tuple-Definition-of-an-MDP">¶</a></h2><blockquote>
-<p>💡 <strong>Note:</strong>
-In theoretical studies, we usually assume the <strong>MDP is finite</strong>, which ensures that the Bellman equation has a unique solution, an optimal policy exists, and dynamic programming algorithms converge.
-In real-world applications (such as deep reinforcement learning), however, the state and action spaces are often <strong>infinite or continuous</strong>.
-The finite MDP serves as the theoretical foundation for analysis and teaching, even though real-world RL problems are usually infinite.</p>
-<p>Regardless of whether the MDP is finite** or infinite, both share the same five-tuple structure
-$(\mathcal{S}, \mathcal{A}, T, r, \gamma)$;
-the only difference lies in whether the <strong>state space</strong> and <strong>action space</strong> are finite or infinite.</p>
-</blockquote>
-<p>The five-tuple is the modeling language of an MDP, not an algorithmic assumption. Any solution must first be described using these five components.</p>
-<p>A Markov Decision Process is defined by a five-tuple:
-$$
-\mathcal{M} = (\mathcal{S}, \mathcal{A}, T, r, \gamma)
-$$
-where:</p>
-<ol>
-<li><p>State Space $\mathcal{S}$: The set of all possible environment states. $s_t \in \mathcal{S}$ denotes the concrete state at time $t$.</p>
-<p>A state should be a sufficient summary of the past. We should be able to throw away the history once state is known, i.e., it should have the <strong>Markov Property</strong>:
-$$
- \mathbb{P}\!\left[R_{t+1}=r,\,S_{t+1}=s' \mid S_0,A_0,R_1,\ldots,A_{t-1},R_t,S_t,A_t\right]
- =
- \mathbb{P}\!\left[R_{t+1}=r,\,S_{t+1}=s' \mid S_t,A_t\right]
- $$</p>
+<h2 id="----Background">--- Background<a class="anchor-link" href="#----Background">¶</a></h2><p>In the MDP framework, we typically distinguish three major learning objectives:</p>
+<ul>
+<li><strong>Prediction</strong>: given a fixed policy, evaluate how good it is by computing its value function</li>
+<li><strong>Control</strong>: among all policies, find the optimal policy and the corresponding optimal value function</li>
+<li><strong>Learning</strong>: when the environment dynamics and reward function are unknown, learn value functions or policies through interaction with the environment (basically, prediction + control)</li>
+</ul>
+<h4 id="Two-Types-of-Bellman-Equations">Two Types of Bellman Equations<a class="anchor-link" href="#Two-Types-of-Bellman-Equations">¶</a></h4><p>Bellman equations come in two closely related forms: Bellman Expectation Equations and Bellman Optimality Equations. One of them is the core tool of the "Prediction" objective and one is the core tool of the "Control" objective.</p>
+<ul>
+<li><p><strong>Bellman Expectation Equations</strong></p>
+<ul>
+<li>Concern <strong>Prediction</strong> (evaluation a policy)</li>
+<li>Define and compute <strong>value functions under a fixed policy</strong></li>
+<li>Express the value function as the expected immediate reward plus the discounted value of successor states, where the expectation is taken over the policy’s action probabilities</li>
+<li>Lead to a <strong>system of linear equations</strong>, which can be written in matrix form and solved exactly (in principle)</li>
+</ul>
 </li>
-<li><p>Action Space $\mathcal{A}$: The set of actions the agent can take, which depends on the state. $a_t \in \mathcal{A}(s_t)$ denotes the action taken at state $s_t$.</p>
+<li><p><strong>Bellman Optimality Equations</strong></p>
+<ul>
+<li>Concern <strong>Control</strong> (finding optimal policy)</li>
+<li>Characterize <strong>optimal value functions</strong></li>
+<li>Replace the expectation over actions with a <strong>maximization</strong>, reflecting optimal decision making</li>
+<li>Lead to a <strong>system of nonlinear equations</strong>, whose solution defines the optimal value function and the optimal policy</li>
+</ul>
 </li>
-<li><p>State Transition $T(s' \mid s, a)$: The probability of transitioning to state $s'$ and get reward $r$ after taking action $a$ in state $s$.</p>
-<p>$$T(s', r \mid s, a) = \mathbb{P}(S_{t+1} = s', R_{t+1} = r \mid S_t = s, A_t = a)$$
-This equation expresses the Markov property we mentioned before.</p>
+</ul>
 <blockquote>
-<p>Notice that sometimes $r$ is deterministic, where the state trasition can also be written as $T(s' \mid s, a)$.</p>
-</blockquote>
-</li>
-<li><p>Reward Function $r(s, a, s')$: The immediate reward received after the state transition or after taking an action. Here $s'$ is the resulting state after the transition. The reward may be a random variable, and its expectation is given by $r$. For example, a simple one</p>
-<p>$$r(s,a,s') = \mathbb{E}\!\left[ R_{t+1} \mid S_t = s,\; A_t = a ,\; S_{t+1} = s'\right]$$</p>
-<blockquote>
-<p>Notice that $r$ does not always depends on $s'$, where the reward function can also be written as $r(s, a)$.</p>
-</blockquote>
-</li>
-<li><p>Discount Factor $\gamma \in [0,1]$: Controls the importance of future rewards. $\gamma = 0$ considers only immediate rewards, while $\gamma \to 1$ emphasizes long-term returns.</p>
-</li>
-</ol>
-<blockquote>
-<p>In reinforcement learning and dynamic programming, lowercase letters usually denote concrete values or true objects, e.g. states $s$, actions $a$, value functions $v_\pi, q_\pi$; uppercase letters usually denote random variables or estimators in algorithms, such as random state $S_t$, random action $A_t$, and learned values $V, Q$. A standard and clear convention in the field is: uppercase = random variable / learned estimate, lowercase = realized value or ground truth.</p>
+<p>Bellman equations address <strong>Prediction</strong> and <strong>Control</strong>, but not <strong>Learning</strong> directly. This is because Bellman equations assume an MDP with <strong>known transition dynamics and rewards</strong> and characterize the recursive consistency conditions that value functions must satisfy.</p>
+<p>The "Learning" objective focuses instead on how to approximate these Bellman equations from data when the transition dynamics and rewards are unknown, which motivates iterative and sample-based algorithms studied later in approximate DP / RL.</p>
 </blockquote>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=65b9c704">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4ef0baf7">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----Markov-Decision-Process-As-A-Turn-Based-Game">--- Markov Decision Process As A Turn-Based Game<a class="anchor-link" href="#----Markov-Decision-Process-As-A-Turn-Based-Game">¶</a></h2><p>In the bandits section, we abstracted bandits as a turn-based game. Similarly, an MDP is also a turn-based game much like bandits. If the Bandit Problem describes a "turn-based game where each round is independent," then the Markov Decision Process (MDP) describes a "turn-based game where the situation in each round can change based on your previous actions". In this setting, each round is no longer independent. The basic interaction pattern (aligned with the form of bandits) is:</p>
-<ol>
-<li>Given the set of available actions $\mathcal{A}(S_t)$ at the current state $S_t \in \mathcal{S}$</li>
-<li>Choose an action $A_t$</li>
-<li>The environment transitions to a new state according to the state transition probability $T(S_{t+1}\mid S_t, A_t)$</li>
-<li>Simultaneously, receive a reward $R_t = r(S_t, A_t, S_{t+1})$</li>
-<li>The agent updates its policy</li>
-<li>Move to the next round</li>
-</ol>
-<p><strong>Objective</strong>: Maximize expected cumulative reward (or minimize regret).</p>
-<blockquote>
-<p>Similarities between MDPs and bandits:</p>
-<ul>
-<li>From the perspective of interaction, both follow: observe → choose → receive feedback → update → next round</li>
-<li>The learning objective is to maximize expected cumulative return (or minimize regret)</li>
-<li>In every step, an action is selected to maximize cumulative return</li>
-</ul>
-<p>Key differences between MDPs and bandits:</p>
-<ul>
-<li>There is an additional step (step 3): state transition. The set of available actions each round depends on the state $\mathcal{A}(S_t)$, so the interaction pattern in the next round may change depending on the action chosen in the previous round.</li>
-</ul>
-</blockquote>
-<p><strong>Looking at MDP from the Two Core Assumptions of Bandit:</strong></p>
-<ol>
-<li><p>Partial Feedback ✅</p>
-<p>In an MDP, at each step you can only observe the action you took, the reward you received, and the next state you transitioned to. You can't see "what would have happened if you had selected a different action"—just like in bandits.</p>
-</li>
-<li><p>Stateless ❌</p>
-<p>In an MDP, your action directly determines the state transition. The current action affects: the state you will be in in the future, the set of actions you can choose from in the future, and the distribution of future rewards.</p>
-<blockquote>
-<p>In contextual bandits, the environment changes, but not due to your actions—it changes independently of the agent.</p>
-</blockquote>
-</li>
-</ol>
-<h3 id="Bandit-As-A-One-State-MDP">Bandit As A One-State MDP<a class="anchor-link" href="#Bandit-As-A-One-State-MDP">¶</a></h3><p>Bandit is equivalent to an MDP where:</p>
-<ul>
-<li>There is only one state $s^*$ (or the state contains no information)</li>
-<li>The transition is always identical: $T(S_{t+1}=s^* \mid S_t=s^*, A_t)=1$</li>
-<li>The reward depends only on the action (and possibly exogenous context): $R_t = r(A_t)$ or $R_t = r(A_t, C_t)$</li>
-</ul>
-<p>This is a <strong>one-state MDP: the state is never changed by actions</strong>. $A_t$ does not enter the environment's evolution equation, so the way the next $C_{t+1}$ / $\mathcal{A}_{t+1}$ / reward mechanism is generated is independent of $A_t$.</p>
+<h2 id="----Bellman-Expectation-Equations-(Prediction)">--- Bellman Expectation Equations (Prediction)<a class="anchor-link" href="#----Bellman-Expectation-Equations-(Prediction)">¶</a></h2><p>The Bellman Expectation Equation is a <strong>system of linear equations</strong> w.r.t. $v_{\pi}$ or $q_{\pi}$ (which appears in first-order), where each state (or state-action) corresponds to one equation.</p>
+<p><strong>Unique solution</strong>: the state or state-action value function under that policy.</p>
+<h4 id="Derivation-of-the-State-Value-Function">Derivation of the State Value Function<a class="anchor-link" href="#Derivation-of-the-State-Value-Function">¶</a></h4><p>Start with the recursive definition of the return (the source of all Bellman equations):
+$$
+G_t = R_{t+1} + \gamma R_{t+2} + \gamma^2 R_{t+3} + \cdots
+$$
+Through simple algebraic manipulation, we get the following form. It illustrates the key Bellman idea that "the current long-term return = one-step immediate reward + discounted future return":
+$$
+G_t = R_{t+1} + \gamma G_{t+1}
+$$</p>
+<p>By conditioning the above recursion on the state and taking expectation, we obtain the Bellman Expectation Equation (state value):
+$$
+\begin{align}
+v_\pi(s)
+&amp; = \mathbb{E}_\pi[G_t \mid S_t = s] = \mathbb{E}_\pi[R_{t+1} + \gamma v_\pi(S_{t+1}) \mid S_t = s] \nonumber\newline
+&amp; = \sum_a \pi(a|s) \mathbb{E} \left[R_{t+1}+\gamma v_\pi(S_{t+1})\mid S_t=s,A_t=a\right] \nonumber\newline
+&amp; = \sum_a \pi(a|s)\sum_{s', r} p(s', r \mid s, a)\bigl[r + \gamma v_\pi(s')\bigr] \nonumber
+\end{align}
+$$</p>
+<h4 id="Derivation-of-the-State%E2%80%93Action-Value-Function">Derivation of the State–Action Value Function<a class="anchor-link" href="#Derivation-of-the-State%E2%80%93Action-Value-Function">¶</a></h4><p>Similarly, if we condition on $(s, a)$, we obtain the Bellman Expectation Equation (state-action value):
+$$
+\begin{align}
+q_\pi(s,a)
+&amp; = \mathbb{E}_\pi[R_{t+1} + \gamma q_\pi(S_{t+1}, A_{t+1}) \mid S_t=s, A_t=a] \nonumber\newline
+&amp; = \sum_{s',r} p(s',r\mid s,a)\Bigl[r+\gamma\mathbb{E}_\pi[q_\pi(s',A_{t+1})\mid S_{t+1}=s']\Bigr] \nonumber\newline
+&amp; = \sum_{s', r} p(s', r \mid s, a)\Bigl[r + \gamma \sum_{a'} \pi(a'|s') q_\pi(s', a')\Bigr] \nonumber
+\end{align}
+$$</p>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=0add94e1">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=a76d6fae">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----Learning-Objective-of-MDP">--- Learning Objective of MDP<a class="anchor-link" href="#----Learning-Objective-of-MDP">¶</a></h2><p>Based on the MDP five-tuple, we can define the following key quantities:</p>
-<ul>
-<li><p>Return $G_t$: The cumulative (discounted) reward starting from time $t$. The MDP objective function is based on the expected return.</p>
-<ul>
-<li>Episodic task: The interaction will naturally end (has a terminal state), such as playing a game, a chess match, or completing a maze. Use simple summation:
-$$G_t = R_{t+1} + \cdots + R_T$$</li>
-<li>Continuing task: The interaction does not naturally terminate (keeps going), such as stock trading, server scheduling, or temperature control systems. Use discounted return to ensure $G_t$ converges:
+<h2 id="----Bellman-Optimality-Equation-(Control)">--- Bellman Optimality Equation (Control)<a class="anchor-link" href="#----Bellman-Optimality-Equation-(Control)">¶</a></h2><p>The Bellman Optimality Equation is a <strong>system of non-linear equations</strong> w.r.t. $v_{\pi}$ or $q_{\pi}$ (which appears in first-order), where each state (or state-action) corresponds to one equation.</p>
+<blockquote>
+<p>This is a nonlinear system of equations because $\max(x,y)$ does not satisfy linearity: $\max(x_1+x_2,y_1+y_2)\neq \max(x_1,y_1)+\max(x_2,y_2)$</p>
+</blockquote>
+<p><strong>Unique solution</strong>: the state or state-action value function corresponds to the optimal policy.</p>
+<p>The <strong>only difference</strong> between Expectation and Optimality is in one place: Expectation takes an expectation over actions $(\sum_a \pi(a|s))$, while Optimality takes the maximum over actions $(\max_a)$.</p>
+<h4 id="Optimal-State-Value-Function">Optimal State Value Function<a class="anchor-link" href="#Optimal-State-Value-Function">¶</a></h4><p>$$
+v^*(s) =
+\max_{a \in \mathcal{A}}
+\sum_{s', r} p(s', r \mid s, a)
+\bigl[r + \gamma v^*(s')\bigr]
+$$</p>
+<h4 id="Optimal-Action-Value-Function">Optimal Action Value Function<a class="anchor-link" href="#Optimal-Action-Value-Function">¶</a></h4><p>$$
+q^*(s,a) =
+\sum_{s', r} p(s', r \mid s, a)
+\bigl[
+r + \gamma \max_{a'} q^*(s', a')
+\bigr]
+$$</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=3996712b">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----Solve-Bellman-Equation">--- Solve Bellman Equation<a class="anchor-link" href="#----Solve-Bellman-Equation">¶</a></h2><h4 id="Bellman-Expectation-Equation%EF%BC%88prediction%EF%BC%89">Bellman Expectation Equation（prediction）<a class="anchor-link" href="#Bellman-Expectation-Equation%EF%BC%88prediction%EF%BC%89">¶</a></h4><p>Starting from the Bellman expectation equation:
 $$
-  G_t = R_{t+1} + \gamma R_{t+2} + ... = \sum_{k=0}^{\infty} \gamma^k r_{t+k+1}
-  $$
-Also it's easy to see $G_t = R_{t+1} + \gamma G_{t+1}$.</li>
-</ul>
-</li>
-<li><p>Policy $\pi$: A distribution over actions given states. It fully defines the behavior of the learner. It is updated during the learning process, but should be stationary (time-independent, i.e. $\mathbb{P}(A_t = a \mid S_t = s) = \mathbb{P}(A_{t'} = a \mid S_{t'} = s)$).</p>
-<ul>
-<li>Stochastic policy: $\pi(a \mid s) = \mathbb{P}(A_t = a \mid S_t = s)$</li>
-<li>Deterministic policy: $\pi(s) = a$ with probability 1.</li>
-</ul>
-</li>
-<li><p>Value Functions: Expected returns.</p>
-<ul>
-<li>State value function: Under policy $\pi$, the cumulative expected return starting from state $s$. It <strong>measures the goodness of a state</strong>.
-$$v_\pi(s) = \mathbb{E}_\pi [G_t \mid S_t = s]$$</li>
-<li>Action value function: Under policy $\pi$, the cumulative expected return starting from state $s$ and taking action $a$. It <strong>measures the goodness of a state-action pair</strong>.
-$$q_\pi(s, a) = \mathbb{E}_\pi [G_t \mid S_t = s, A_t = a]$$</li>
-</ul>
-</li>
-<li><p>Optimal Value Functions: Best achievable expected returns.</p>
-<ul>
-<li>Optimal state-value function: The maximum cumulative expected return starting from state $s$ over all policies. It <strong>measures the best possible goodness of a state</strong>.
-$$v^*(s) = \max_\pi v_\pi(s)$$</li>
-<li>Optimal action-value function: The maximum cumulative expected return starting from state $s$ and action $a$ over all policies. It <strong>measures the best possible goodness of a state-action pair</strong>.
-$$q^*(s,a) = \max_\pi q_\pi(s,a)$$</li>
-</ul>
-</li>
-<li><p>Optimal policy:
+v_\pi(s)=\sum_{a}\pi(a|s)\sum_{s',r}p(s',r\mid s,a)\bigl[r+\gamma v_\pi(s')\bigr]
 $$
-  \pi^* = \arg\max_\pi \mathbb{E}_\pi [G_0]
-  $$
-The optimal policy is usually not unique; any policy that achieves the highest expected return is considered optimal.</p>
-</li>
-</ul>
-<blockquote>
-<p>Why the value functions are useful? The relationship between the optimal policy $\pi^*$ and $q^*$, $v^*$:</p>
+Decompose the environment into reward + transition:</p>
 <ul>
-<li>$\pi^*$ is <strong>greedy</strong> with respect to $q^*$. In state $s$, if you want to maximize total return, you should of course choose the action with the highest $q^*(s,a)$. Therefore, the optimal policy is
-$$\pi^*(s) = \arg\max_a q^*(s,a)$$</li>
-<li>If you only know $v^*$, you also need the environment dynamics to derive $q^*$, and then obtain $\pi^*$.
-By definition, $q^*(s,a)$ is the expected return obtained by taking action $a$ in state $s$ and then following optimal behavior. After one transition, the agent receives reward $r$ and moves to next state $s'$. Therefore (we'll see in the Bellman Equation notes that this is actually Bellman Optimality Equation),
-$$q^*(s,a) = \mathbb{E}[r + \gamma v^*(s') \mid s,a] = \sum_{s',r} p(s',r|s,a)\bigl(r + \gamma v^*(s')\bigr)$$
-accordingly
-$$\pi^*(s) = \arg\max_a \sum_{s',r} p(s',r|s,a)\bigl(r + \gamma v^*(s')\bigr)$$</li>
-</ul>
-</blockquote>
-<h3 id="Learning-Objectives-of-MDP">Learning Objectives of MDP<a class="anchor-link" href="#Learning-Objectives-of-MDP">¶</a></h3><p>In the MDP framework, there are three main objectives we might pursue:</p>
-<ol>
-<li><p>Evaluating a given policy (prediction)</p>
-<p>Given an MDP $(\mathcal S, \mathcal A, T, r, \gamma)$ and a policy $\pi(a|s)$, the goal is to find the state-value function $v_{\pi}$ or action-value function $q_{\pi}$. That is, “What is the long-term expected return if we always follow this policy?”</p>
-<p>Example: Evaluating the performance of a "beginner player policy" in a maze.</p>
-<ul>
-<li>Policy (cannot be changed): at each intersection, 50% chance to go left, 50% to go right.</li>
-<li>All you want to know is: "If you always follow this strategy, what is the average score you will achieve?"</li>
-<li>Output: The state-value function $v_{\pi}$ for each position.</li>
-</ul>
-<blockquote>
-<p>In industry systems, the ultimate goal is decision-making; Prediction is not for making decisions but is rather a tool for evaluation, so it rarely exists as a final product. Its main purpose is to support control and learning: it serves as a sub-problem of planning/control and as a source of training signal for RL.</p>
+<li>Recall the one-step expected reward in the MDP five-tuple definition:
+$$
+r(s,a)\doteq \mathbb{E}[R_{t+1}\mid S_t=s,A_t=a]=\sum_{s',r}p(s',r\mid s,a) r
+$$<blockquote>
+<p>Here, $r$ and $r()$ are two completely different things. This $r$ refers to a particular random value taken by $R_{t-1}$, whereas $r()$ denotes the reward function.</p>
 </blockquote>
 </li>
-<li><p>Finding the optimal policy (optimal control / planning)</p>
-<p>Given an MDP $(\mathcal S, \mathcal A, T, r, \gamma)$, the goal is to find $\pi^*$.</p>
-<p>Example: Solving a board game with known rules.</p>
+<li>Recall the state transition in the MDP five-tuple definition:
+$$
+T(s'|s,a)\doteq \Pr(S_{t+1}=s'\mid S_t=s,A_t=a)=\sum_{r}p(s',r\mid s,a)
+$$
+Substituting back, we get:
+$$
+v_\pi(s)=\sum_{a}\pi(a|s)\Bigl(r(s,a)+\gamma\sum_{s'}T(s'|s,a) v_\pi(s')\Bigr)
+$$
+This can be simplified as (this is also the Bellman equation for the <strong>Markov Reward Process</strong>):
+$$
+v_\pi(s)=r^{\pi}_s+\gamma\sum_{s'}T^{\pi}_{s'|s} v_\pi(s')
+$$
+where</li>
+<li>expected reward at state $s$: $r^{\pi}_s\doteq \sum_{a}\pi(a|s) r(s,a)$</li>
+<li>state transition dynamics: $T^{\pi}_{s'|s}\doteq \sum_{a}\pi(a|s) T(s'|s,a)$</li>
+</ul>
+<p>Stack the value of all states into a vector $\mathbf v_\pi\in\mathbb{R}^{|\mathcal S|}$, similarly the expected reward vector $\mathbf r^\pi\in\mathbb{R}^{|\mathcal S|}$, and the transition matrix $T^\pi\in\mathbb{R}^{|\mathcal S|\times|\mathcal S|}$:</p>
 <ul>
-<li>You know the winning/losing rules and all possible policies.</li>
-<li>You just want to know: "What is the best move in each situation?" In other words, which policy achieves the highest state value in each state?</li>
-<li>Output: The optimal policy $\pi^*$ and the corresponding $v^*$, $q^*$.</li>
+<li>$(T^\pi)_{j,k} = \Pr(S_{t+1}=s_k \mid S_t=s_j, a\sim\pi(\cdot|s_j))$</li>
+<li>$(\mathbf r^\pi)_j = \mathbb{E}[R_{t+1}\mid S_t=s_j, a\sim\pi(\cdot|s_j)]$</li>
+<li>$(\mathbf v_\pi)_j = v_\pi(s_j)$</li>
+</ul>
+<p>Then:
+$$
+\mathbf v_\pi=\mathbf r^\pi+\gamma T^\pi\mathbf v_\pi
+$$</p>
+<p>Rearrange into the standard linear system:
+$$
+(I-\gamma T^\pi)\mathbf v_\pi=\mathbf r^\pi
+$$</p>
+<p>As long as $I-\gamma T^\pi$ is invertible (which usually holds for a finite MRP with $\gamma&lt;1$), solving for $\mathbf v_\pi$ is a standard linear algebra problem, and you can obtain it directly using the matrix inverse:
+$$
+\mathbf v_\pi=(I-\gamma T^\pi)^{-1}\mathbf r^\pi
+$$</p>
+<blockquote>
+<p>Why don’t we actually use matrix inverse to compute state value / state-action value?</p>
+<p>The typical computational complexity of directly inverting a matrix or solving a linear system is $\mathcal{O}(|\mathcal S|^3)$. This becomes infeasible when the state space is large. That’s why “directly solving the linear system” is mainly a theoretical tool—good to know, but in practice we use iterative algorithms. Similarly, in linear algebra we may learn how to compute the matrix inverse by hand for closed form, but in real computer implementations of linear algebra, actual computations involving matrix inversion are often done through iterative algorithms instead of direct inversion.</p>
+</blockquote>
+<h4 id="Bellman-Optimality-Equation%EF%BC%88control%EF%BC%89">Bellman Optimality Equation（control）<a class="anchor-link" href="#Bellman-Optimality-Equation%EF%BC%88control%EF%BC%89">¶</a></h4><p>$$
+v^*(s) =
+\max_a
+\sum_{s',r}p(s',r|s,a)\bigl[r+\gamma v^*(s')\bigr]
+$$</p>
+<p>The max operator is nonlinear, so the equation cannot be written in the form $A\mathbf v = \mathbf b$, and thus we cannot get a closed-form solution by matrix inversion. Instead, we must rely on iterative methods to approximate the optimal solution.</p>
+<blockquote>
+<p><strong>Solving Bellman Equations for State–Action Values</strong></p>
+<p>In this section, we mainly discuss how to solve Bellman equations for state values $v$. A natural question is: can the state–action values $q$ also be solved through Bellman equations?</p>
+<ul>
+<li><p>Bellman Expectation Equation</p>
+<p>For a given policy $\pi$, the state–action value function $q_\pi$ satisfies a set of linear equations. In theory, it can also be written in matrix form and a unique solution can be obtained by solving the linear system. However, since its dimension is $|\mathcal{S}||\mathcal{A}|$, the corresponding matrix is much larger, making computation and storage much more expensive. Therefore, in practice and in classroom derivations, this approach is rarely used.</p>
+</li>
+<li><p>Bellman Optimality Equation</p>
+<p>For the optimal state–action value function $q^*$, the Bellman equation contains the $\max$ operator, making the equation nonlinear. As a result, it cannot be solved in closed-form by matrix inversion. In this case, we also have to rely on iterative methods to approximate the optimal solution.</p>
+</li>
+</ul>
+<p>Therefore, when introducing "how to solve Bellman equations," we mainly focus on state value functions $v$; for control problems, whether it is $v^*$ or $q^*$, we ultimately need to use iteration-based algorithms, such as value iteration, policy iteration, and their corresponding methods in $q$-space.</p>
+</blockquote>
+<h4 id="Preview:-Policy-Iteration-And-Value-Iteration">Preview: Policy Iteration And Value Iteration<a class="anchor-link" href="#Preview:-Policy-Iteration-And-Value-Iteration">¶</a></h4><p>Because:</p>
+<table>
+<thead>
+<tr>
+<th>Equation</th>
+<th>Linear?</th>
+<th>Can matrix inverse?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bellman Expectation</td>
+<td>✅ Yes</td>
+<td>Theoretically possible (but very costly)</td>
+</tr>
+<tr>
+<td>Bellman Optimality</td>
+<td>❌ (max)</td>
+<td>Impossible</td>
+</tr>
+</tbody>
+</table>
+<p>Therefore, we must use iterative algorithms to solve control and prediction problems.</p>
+<ul>
+<li><strong>Policy Iteration</strong><ul>
+<li>Policy Evaluation (solve Bellman Expectation)</li>
+<li>Policy Improvement (greedy with respect to value)</li>
 </ul>
 </li>
-<li><p>Learning via interaction when the environment is unknown (learning / RL)</p>
-<p>Given an MDP $(\mathcal S, \mathcal A, T, r, \gamma)$ with <strong>unknown $T$ and $r$</strong>, the objective is to find $\pi^*$ (usually aiming for an approximately optimal policy).</p>
-<p>Example: Teaching a robot to walk on unknown terrain.</p>
-<ul>
-<li>The environmental rules are unknown: you do not know which actions will move forward, fall, or cause damage, and must rely on trial-and-error interaction with the environment.</li>
-<li>During learning, keep updating the state-value function / action-value function / policy.</li>
-<li>Output: a policy $\pi$ learned through interaction (ideally close to $\pi^*$), and its corresponding $v$ or $q$.</li>
+<li><strong>Value Iteration</strong><ul>
+<li>Directly iterates on the Bellman Optimality equation</li>
 </ul>
-<blockquote>
-<p>Learning combines prediction and control: when the model is unknown, you estimate value functions and improve policy at the same time.</p>
-</blockquote>
 </li>
-</ol>
-<blockquote>
-<p>An intuitive analogy</p>
-<p>Planning</p>
-<ul>
-<li>You have: a complete map and the travel time for each road</li>
-<li>Approach: Calculate the shortest path. You can "simulate it in your mind" and compute it exactly.</li>
 </ul>
-<p>Learning</p>
-<ul>
-<li>You only see: one step at a time as you go</li>
-<li>Approach: Keep trying and continuously update your experience</li>
-</ul>
-</blockquote>
+<p>Essentially, both are different forms of iterative backup for the Bellman Equation.</p>
 </div>
 </div>
 </div>
