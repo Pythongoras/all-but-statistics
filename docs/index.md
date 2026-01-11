@@ -43,3 +43,18 @@
 - [BellmanEquation](https://pythongoras.github.io/all-but-statistics/7-DynamicProgramming/BellmanEquation.html)
 - [PolicyIteration](https://pythongoras.github.io/all-but-statistics/7-DynamicProgramming/PolicyIteration.html)
 - [ValueIteration](https://pythongoras.github.io/all-but-statistics/7-DynamicProgramming/ValueIteration.html)
+
+
+
+
+### ReinforcementLearning
+
+##### Foundations
+- [ImportanceSampling](https://pythongoras.github.io/all-but-statistics/8-ReinforcementLearning/ImportanceSampling.html)
+
+
+##### ValueBasedLearning
+<!-- - [MonteCarloLearning](https://pythongoras.github.io/all-but-statistics/8-ReinforcementLearning/MonteCarloLearning.html) -->
+
+
+##### PolicyBasedLearning
