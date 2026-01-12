@@ -50,11 +50,9 @@
 ### ReinforcementLearning
 
 ##### Foundations
-- [ImportanceSampling](https://pythongoras.github.io/all-but-statistics/8-ReinforcementLearning/ImportanceSampling.html)
-
+- [ImportanceSampling](https://pythongoras.github.io/all-but-statistics/8-ReinforcementLearning/0-Foundations/ImportanceSampling.html)
 
 ##### ValueBasedLearning
-<!-- - [MonteCarloLearning](https://pythongoras.github.io/all-but-statistics/8-ReinforcementLearning/MonteCarloLearning.html) -->
-
+- [MonteCarloLearning](https://pythongoras.github.io/all-but-statistics/8-ReinforcementLearning/1-ValueBasedLearning/MonteCarloLearning.html)
 
 ##### PolicyBasedLearning

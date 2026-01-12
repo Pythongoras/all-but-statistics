@@ -3,7 +3,7 @@
 <html lang="en">
 <head><meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>ImportanceSampling</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
+<title>MonteCarloLearning</title><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
 <style type="text/css">
     pre { line-height: 125%; }
 td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
@@ -7511,272 +7511,429 @@ a.anchor-link {
 <!-- End of mermaid configuration --></head>
 <body class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
 <main>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=95226763">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=e3c3837b">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<div align="center" style="font-size:40px;">Importance Sampling</div>
-<p>Importance sampling is a concept that originated in statistical physics and numerical integration, initially used to efficiently estimate integrals or expectations when it is difficult to sample directly from a distribution. Later, this method was widely adopted in machine learning and reinforcement learning to "approximate the expectation under one distribution using data from another distribution." Let's break down the logic and intuition behind importance sampling.</p>
+<div align="center" style="font-size:40px;">Monte Carlo Learning</div>
+<p>In the settings where rewards and transition dynamics are known, value functions are been estimated via DP methods like policy iteration or value iteration.</p>
+<p>In many settings, rewards and transition dynamics are unknown, and value functions must be estimated directly from interaction experience. Monte Carlo methods address this by sampling complete trajectories and replacing probability-based expectations with empirical expectations, obtained by averaging sampled returns.</p>
+<p>Basically, Monte Carlo refers to a general idea: <strong>using random sampling to approximate expectations</strong>. That is, Monte Carlo = Monte Carlo Expectation Estimation. In the context of reinforcement learning, <strong>MC learning = Monte Carlo estimation of value-function (which is an expectation of returns) using sampled returns</strong>.</p>
+<p>In real-world production, <strong>pure Monte Carlo (MC) Learning is rarely used on its own</strong>. The main reasons are</p>
+<ul>
+<li>MC methods have low sample efficiency.</li>
+<li>MC methods require waiting until the end of an entire episode before updating, making learning slow and unsuitable for long-horizon or continuing tasks.</li>
+<li>The high variance of returns leads to instability during training (TD learning will reduce the variance by introducing extra bias).</li>
+</ul>
+<p>As a result, MC Learning is mainly used for teaching, theoretical analysis, or as a component for approximate return estimation within Actor-Critic algorithms, rather than as a standalone method in engineering systems.</p>
 <p>Takeaways:</p>
 <ol>
-<li>Is the self-normalized importance sampling only used for unnormalized distributions?</li>
-<li>Is the self-normalized importance sampling estimator asymptotically biased?</li>
-<li>Why we only compute importance weight with normalized distributions in RL?</li>
+<li>What are Monte Carlo Methods? And what is Monte Carlo Learning?</li>
+<li>Why the tasks are required to be episodic with a clear termination to be able to use MC learning?</li>
+<li>When should we use a constant step size $\alpha$?</li>
+<li>Practically, which is used more often: first-visit MC or every-visit MC?</li>
+<li>Can we add exploration to the policy evaluation step?</li>
+<li>What is the difference between on-policy and off-policy learning?</li>
+<li>Is ε-soft policy MC Control an on-policy or off-policy algorithm?</li>
+<li>Which one usually has lower variance: the ordinary IS estimator or weighted IS estimator? Why?</li>
 </ol>
 </div>
 </div>
 </div>
 </div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=03c06d7e">
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=75f6c69e">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----Ordinary-Importance-Sampling">--- Ordinary Importance Sampling<a class="anchor-link" href="#----Ordinary-Importance-Sampling">¶</a></h2><p>Suppose you want to compute an expectation:
+<h2 id="----Prerequisites-of-MC-Learning">--- Prerequisites of MC Learning<a class="anchor-link" href="#----Prerequisites-of-MC-Learning">¶</a></h2><h4 id="Notations">Notations<a class="anchor-link" href="#Notations">¶</a></h4><p>Return
 $$
-\mathbb{E}_{p(z)}[f(z)] = \int f(z)p(z)dz
+G_t = R_{t+1} + \gamma R_{t+2} + \cdots + \gamma^{T-t-1} R_T
 $$
-If you can sample directly from $p(z)$, then it's very straightforward. You can easily use the <strong>Monte Carlo estimator</strong> to approximate this expectation (also called the <strong>empirical expectation</strong>):
+State Value
 $$
-\hat{I} = \frac{1}{N}\sum_{i=1}^N f(z_i), \quad z_i \sim p
+v_\pi(s) = \mathbb{E}_\pi[G_t \mid S_t = s]
+$$
+Action Value
+$$
+q_\pi(s,a) = \mathbb{E}_\pi[G_t \mid S_t=s, A_t=a]
+$$</p>
+<h4 id="Assumptions">Assumptions<a class="anchor-link" href="#Assumptions">¶</a></h4><p>We can see from the notations that the value functions are expected returns, and we compute the expected returns based on the reward function and trasition dynamic. While MC learning uses empirical mean return instead of the expected returns. Basically,</p>
+<pre><code>MC Policy Evaluation ≈ Model-free Policy Evaluation
+MC Control ≈ Model-free Policy Iteration
+</code></pre>
+<ul>
+<li><p>A critical assumption of MC learning is <strong>episodic task with a clear termination</strong>. Why?</p>
+<p>The reason why classical Monte Carlo (MC) methods require the task to be episodic with guaranteed termination is that MC uses the complete return $G_t$ as the learning signal. This return must be explicitly computed after the episode ends, and MC does not use bootstrapping; it does not estimate the future based on current value estimates.</p>
+<p>For a non-terminating game, the return is defined as:
+$$
+  G_t^{(\infty)} = \sum_{k=0}^{\infty} \gamma^k R_{t+k+1}
+  $$
+Mathematically, if $\gamma &lt; 1$, this sum may converge; but for Monte Carlo methods, this is an infinite random sum, and it is impossible to sample a complete $G_t^{(\infty)}$ within finite time.</p>
+<p>If the episode terminates at time $T$, then the return is:
+$$
+  G_t = R_{t+1} + \gamma R_{t+2} + \cdots + \gamma^{T-t-1} R_T
+  $$
+This is a finite sum, a random variable that can be explicitly computed after the episode ends.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=3b087dc7">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----Monte-Carlo-Policy-Evaluation-(Prediction)">--- Monte Carlo Policy Evaluation (Prediction)<a class="anchor-link" href="#----Monte-Carlo-Policy-Evaluation-(Prediction)">¶</a></h2><p><strong>Goal:</strong> Learn $v_\pi(s)$ (or $q_\pi(s)$) from episodes of experience under policy $\pi$
+$$S_0, A_0, R_1, S_1, A_1, R_2,..., S_k \sim \pi$$</p>
+<h3 id="Design-Principle">Design Principle<a class="anchor-link" href="#Design-Principle">¶</a></h3><p>The core idea of Monte Carlo Policy Evaluation is to estimate the state value function or action value function for a given policy using empirical expectation. Specifically, for each state, we maintain a count of visits $N(s)$ and the accumulated return $S(s)$:
+$$
+N(s) \leftarrow N(s) + 1,\qquad
+S(s) \leftarrow S(s) + G_t
+$$
+Then, the state value is estimated by the sample mean:
+$$
+V(s) = \frac{S(s)}{N(s)}
 $$</p>
 <blockquote>
-<p>Core statistical properties of $\hat{I}$:</p>
-<ul>
-<li>Unbiasedness
-$$
-\mathbb{E}[\hat{I}]
-= \mathbb{E}\left[\frac{1}{N}\sum_{i=1}^N f(z_i)\right]
-= \frac{1}{N}\sum_{i=1}^N \mathbb{E}_{p(z)}[f(z_i)]
-= \mathbb{E}_{p(z)}[f(z)]
-$$</li>
-<li>The variance decreases with $1/N$
-$$
-\mathrm{Var}[\hat{I}]
-= \frac{1}{N^2}\sum_{i=1}^N \mathrm{Var}[f(z_i)]
-= \frac{1}{N}\mathrm{Var}_{p(z)}[f(z)]
-$$</li>
-</ul>
+<p>Engineering Trick: Incremental Mean</p>
+<p>This step is the key for implementing MC directly in code. Generally, The mean $\mu_k$ of a sequence $x_1, \ldots, x_k$ can be computed incrementally
+$$\begin{align}
+\mu_k
+&amp;= \frac{1}{k}\sum_{j=1}^{k} x_j \nonumber\\
+&amp;= \frac{1}{k}\left(x_k + \sum_{j=1}^{k-1} x_j\right) \nonumber\\
+&amp;= \frac{1}{k}\left(x_k + (k-1)\mu_{k-1}\right) \nonumber\\
+&amp;= \mu_{k-1} + \frac{1}{k}\left(x_k - \mu_{k-1}\right) \nonumber
+\end{align}$$
+Thus we can update $V$ as
+$$V(s)\leftarrow V(s)+\frac{1}{N(s)}(G_t - V(s))$$
+Notice that MC Policy Evaluation is essentially Asynchronous + Sample-based: each update only occurs for states that are actually visited; updates are triggered by timestep $t$, without any global sweep, so the fundamental index is $t$.</p>
 </blockquote>
-<p>If sampling from $p(z)$ is difficult, we can introduce an alternative distribution $q(z)$ that is easier to sample from:
+<p><strong>MC Policy Evaluation For Non-Stationary Problems</strong></p>
+<p>The original MC update is essentially calculating the average of all historical returns, where by default each past sample has equal weight:
 $$
-\mathbb{E}_{p}[f(z)]
-= \int f(z)\frac{p(z)}{q(z)}q(z) dz
+V(s)\leftarrow V(s)+\frac{1}{N(s)}(G_t - V(s))
 $$
-Thus, you can sample from $q(z)$ and use weights to correct for the bias to obtain the empirical expectation
+However, in non-stationary environments, the return distribution $\mathbb{E}[G_t \mid S=s]$ changes over time, so samples from long ago become less reliable and we do not want old data to have the same weight forever. By using a constant step size $\alpha$, we deliberately forget old samples:
 $$
-\hat{I}_{IS}
-= \frac{1}{N}\sum_{i=1}^N f(z_i)w(z_i),
-\quad z_i \sim q \text{ and } w(z) = \frac{p(z)}{q(z)}\text{ （importance weight）}
+V(S_t)\leftarrow V(S_t)+\alpha(G_t - V(S_t))
+$$
+Using a constant step size $\alpha$ for the update is actually performing exponential weighting: each update multiplies the old estimate by $(1-\alpha)$, causing the weight of older samples to decay exponentially over time
+$$
+\begin{align}
+V_{t+1} 
+&amp; = V_t + \alpha (G_t - V_t) \nonumber \\
+&amp; = (1-\alpha) V_t + \alpha G_t \nonumber \\
+&amp; = (1-\alpha)\big[(1-\alpha)V_{t-1} + \alpha G_{t-1}\big] + \alpha G_t \nonumber \\
+&amp; = (1-\alpha)^2 V_{t-1} + \alpha(1-\alpha) G_{t-1} + \alpha G_t \nonumber \\
+&amp; = (1-\alpha)^{t+1} V_0 + \sum_{i=0}^{t} \alpha (1-\alpha)^{t-i} G_i \nonumber \\
+\end{align}
 $$</p>
-<blockquote>
-<p>Core statistical properties of $\hat{I}_{IS}$:</p>
+<h3 id="Algorithm">Algorithm<a class="anchor-link" href="#Algorithm">¶</a></h3><p>In terms of real implementation, there are two options:</p>
 <ul>
-<li><p>Unbiasedness</p>
-<p>As long as the support condition $q(z)&gt;0$ if and only if $p(z)&gt;0$, and both distributions are integrable,
-$$
-\mathbb{E}[\hat{I}_{\text{IS}}]
-= \frac{1}{N}\sum_{i=1}^N \mathbb{E}_q[f(Z)w(Z)]
-= \mathbb{E}_q\left[f(Z)\frac{p(Z)}{q(Z)}\right]
-= \int f(z)p(z)dz
-= I
-$$</p>
-</li>
-<li><p>If $\mathbb{E}_q[f^2 w^2]&lt;\infty$, the variance still scales as $1/N$
-$$
-\mathrm{Var}[\hat{I}_{\text{IS}}]
-= \frac{1}{N}\mathrm{Var}_q \big(f(Z)w(Z)\big)
-= \frac{1}{N}\big(\mathbb{E}_q \big[f(Z)^2 w(Z)^2\big]-I^2\big)
-$$
-The variance of $\hat{I}_{IS}$ strongly depends on the fluctuations of the ratio $w(z)=p(z)/q(z)$. If $q$ assigns too little probability mass in regions where $p$ is large (poor tail matching), $w$ will "explode," causing $\mathrm{Var}_q(fw)$ to increase drastically (this is exactly why off-policy MC can have very high variance). On the other hand, if $q$ matches $p$ well, the variance is significantly reduced.</p>
-</li>
+<li>First-Visit MC: Update only the first time a state is visited in an episode</li>
+<li>Every-Visit MC: Update every time the state is visited in an episode</li>
 </ul>
-</blockquote>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=2c1cda89">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----Self-Normalized-Importance-Sampling">--- Self-Normalized Importance Sampling<a class="anchor-link" href="#----Self-Normalized-Importance-Sampling">¶</a></h2><p>In practical situations, we often only know the unnormalized forms of distributions $p$ and $q$. In other words, we know the relative magnitudes of the probabilities, but not their exact values. For example, in Bayesian inference, the posterior distribution $p(\theta|x) \propto p(x|\theta)p(\theta)$ is a typical example where only the unnormalized form is known.</p>
-<p>In such cases, we can still use only the unnormalized $\tilde p(z)$ and $\tilde q(z)$ to compute a Monte Carlo estimator of the expectation. The technique used is called self-normalized importance sampling.</p>
-<p>If both true distribution $p(z)$ and $q(z)$ are only known in unnormalized form $\tilde p(z)$ and $\tilde q(z)$, such that
-$$
-p(z)=\frac{\tilde p(z)}{Z_p}, \qquad q(z)=\frac{\tilde q(z)}{Z_q},
-$$
-where $Z_p = \int \tilde p(z)dz$ and $Z_q = \int \tilde q(z)dz$ are unknown or intractable normalization constants,
-the ratio $\frac{p(z)}{q(z)}$ can be expressed as
-$$
-\frac{p(z)}{q(z)}
-= \frac{\tilde p(z)/Z_p}{\tilde q(z)/Z_q}
-= \frac{Z_q}{Z_p}\cdot\frac{\tilde p(z)}{\tilde q(z)}
-$$
-Thus, the expectation under $p$ becomes
-$$
-\mathbb{E}_p[f]
-= \frac{Z_q}{Z_p}\mathbb{E}_q\left[f(z)\frac{\tilde p(z)}{\tilde q(z)}\right],
-\quad \text{where } w(z)=\frac{\tilde p(z)}{\tilde q(z)}
-$$
-Using Monte Carlo samples $z_i \sim q$, we can get the Monte Carlo estimator of the expectation (or emperical expectation) as
-$$
-\hat{I} = \frac{Z_q}{Z_p}\cdot\frac{1}{N}\sum_{i=1}^N f(z_i)w(z_i)
-,\quad z_i \sim q
-$$
-The ratio $\frac{Z_q}{Z_p}$ is unknown, but we can estimate using the same samples $z_i \sim q$
-$$
-\frac{Z_p}{Z_q}
-= \int \frac{\tilde p(z)}{\tilde q(z)} q(z)dz
-\approx \frac{1}{N}\sum_{i=1}^N \frac{\tilde p(z_i)}{\tilde q(z_i)}
-= \frac{1}{N}\sum_{i=1}^N w(z_i)
-,\quad z_i \sim q
-$$
-Plugging this back in $\hat{I}$ gives the <strong>self-normalized estimator</strong>:
-$$
-\hat{I}_{\text{SNIS}}
-= \frac{\sum_{i=1}^N f(z_i)w(z_i)}{\sum_{i=1}^N w(z_i)}
-= \sum_{i=1}^N \tilde{w}_i f(z_i),
-\quad \text{ where } \tilde{w}_i = \frac{w(z_i)}{\sum_{j=1}^N w(z_j)}.
-$$</p>
-<p>Notice! Self-normalized importance sampling is <strong>not an algorithm specifically designed for unnormalized distributions</strong>; rather, it is a method that uses sample weights to estimate the normalization constant, which reduces variance at the cost of introducing nonlinearity and bias. Even in the case where both $\tilde p$ and $\tilde q$ are fully normalized, it is still different from ordinary IS: if $\tilde p = p$ and $\tilde q = q$, then the importance weight $w$ here is exactly the same as the importance weight $w$ in the ordinary IS setting, since $\tilde p / \tilde q = p / q$. However, the estimators themselves are different.
-$$
-\hat{I}_{IS}= \frac{1}{N}\sum_{i=1}^N f(z_i)w(z_i)
-, \quad
-\hat{I}_{\text{SNIS}} = \frac{\sum_{i=1}^N f(z_i)w(z_i)}{\sum_{i=1}^N w(z_i)}
-$$</p>
-<blockquote>
-<p>Core statistical properties of $\hat{I}_{\text{SNIS}}$:</p>
-<ul>
-<li><p>Biased but consistent</p>
-<p>In general, there is no closed-form exact expectation; the first-order bias of the ratio estimator can be given by the second-order Taylor expansion (delta method):
-$$
-\mathbb{E}[\hat I_{\text{SNIS}}]
-\approx
-\mathbb{E}_p[f]
-+ \frac{1}{N} \frac{\operatorname{Cov}_q\big(f(Z)w(Z),w(Z)\big)- \mathbb{E}_p[f]\operatorname{Var}_q\big(w(Z)\big)}{\mu_0^{2}}
-$$
-Therefore, SNIS is typically biased for finite samples (with bias of order $\mathcal O(1/N)$), but under standard regularity conditions it is consistent: $\hat I_{\text{SNIS}}\xrightarrow{a.s.} \mathbb{E}_p[f]$.</p>
-</li>
-<li><p>If $\mathbb{E}_q[(f-I)^2 w^2]&lt;\infty$, the variance still scales as $1/N$ (here $I=\mathbb{E}_p[f]$).</p>
-<p>Using the delta method for the ratio estimator,
-$$
-\operatorname{Var}[\hat I_{\text{SNIS}}] \approx
-\frac{1}{N}\frac{\operatorname{Var}_q\big((f(Z)-I)w(Z)\big)}{\mu_0^{2}} = 
-\frac{1}{N}\frac{\mathbb{E}_q\big[(f(Z)-I)^2 w(Z)^2\big]}{\mu_0^{2}}
-$$</p>
-</li>
-</ul>
-</blockquote>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=69254af9">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----The-Importance-Sampling-Ratio-in-RL">--- The Importance Sampling Ratio in RL<a class="anchor-link" href="#----The-Importance-Sampling-Ratio-in-RL">¶</a></h2><p>Why do we need importance sampling in RL? We want to <strong>estimate the expectation under a policy that is hard to sample from, using data collected from a policy that is easy to sample from</strong>. For example, the target policy $\pi$ might be deterministic, making it unsuitable for exploration and data collection, while an exploratory behavior policy $\mu$ is used for sampling. But of course, this is not the only use case!</p>
-<p>The importance sampling ratio in reinforcement learning is exactly the importance weight $w = p/q$ with normalized distributions, with the random variable being a trajectory (or a trajectory suffix). We only care about importance weight with normalized distributions because an "unnormalized policy" does not exist in RL. For any fixed $s$, every legitimate policy satisfies:
-$$
-\sum_a \pi(a \mid s) = 1
-$$</p>
-<p>In RL, a sample is actually a trajectory $\tau = (S_0, A_0, \dots, S_T)$:
-$$
-p_\pi(\tau) = P(S_0)\prod_{t=0}^{T-1}\pi(A_t|S_t)P(S_{t+1}|S_t,A_t)
-$$
-Because the initial state distribution $P(S_0)$ and the state transition probabilities $P(S_{t+1}|S_t,A_t)$ are determined by the environment, we have:
-$$
-\frac{p_\pi(\tau)}{p_\mu(\tau)} = \prod_{t=0}^{T-1}\frac{\pi(A_t|S_t)}{\mu(A_t|S_t)}
-$$</p>
-<p>In RL, the <strong>importance sampling ratio</strong> from time $t$ to the end $T$ is defined as:
-$$
-\rho_t^T = \prod_{k=t}^{T-1}\frac{\pi(A_k|S_k)}{\mu(A_k|S_k)}.
-$$
-It quantifies the relative probability that the target policy $\pi$ and the behavior policy $\mu$ would generate the same sequence of actions from time $t$ onward. This is the fundamental weighting factor for all off-policy corrections (MC, TD, PG).</p>
-</div>
-</div>
-</div>
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=89a9e94c">
-<div class="jp-Cell-inputWrapper" tabindex="0">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="----Self-Normalized-Importance-Sampling-Estimator-%E2%89%88-Control-Variate">--- Self-Normalized Importance Sampling Estimator ≈ Control Variate<a class="anchor-link" href="#----Self-Normalized-Importance-Sampling-Estimator-%E2%89%88-Control-Variate">¶</a></h2><p>Self-Normalized Importance Sampling can be understood as rdinary importance sampling plus an automatically constructed control variate. Its variance reduction effect comes from <strong>canceling fluctuations in the overall scale of importance weights</strong>.</p>
-<h4 id="Absorbing-the-global-scale-(accidental-weight-inflation)">Absorbing the global scale (accidental weight inflation)<a class="anchor-link" href="#Absorbing-the-global-scale-(accidental-weight-inflation)">¶</a></h4><p>In importance sampling, it is common that <strong>all weights in a given Monte Carlo run are simultaneously inflated or deflated by a random factor</strong>.
-This is not a modeling choice but a <strong>sampling accident</strong>, typically caused by poor tail matching between $q$ and $p$:</p>
-<ul>
-<li>the proposal $q$ happens to place too little mass in regions where $p$ is large;</li>
-<li>the sampled points therefore all receive unusually large importance weights.</li>
-</ul>
-<p>Formally, this corresponds to
-$$
-w_i = c,\tilde w_i,
-$$
-where the random constant $c$ reflects an <em>accidental global scale error</em> in that particular sample set.</p>
-<ul>
-<li><p><strong>Ordinary IS</strong> is highly sensitive to this accident:
-$$
-\hat I_{\text{OIS}} = \frac1N\sum_i w_i f_i = c\cdot \frac1N\sum_i \tilde w_i f_i,
-$$
-so the estimator (and its variance) is amplified linearly by $c$.</p>
-</li>
-<li><p><strong>Self-Normalized IS</strong> automatically cancels this accidental scale:
-$$
-\hat I_{\text{SNIS}}
-=
-\frac{\sum_i w_i f_i}{\sum_i w_i}
-=
-\frac{c\sum_i \tilde w_i f_i}{c\sum_i \tilde w_i}
-=
-\frac{\sum_i \tilde w_i f_i}{\sum_i \tilde w_i}.
-$$</p>
-</li>
-</ul>
-<p>Thus, SNIS treats the <em>overall weight scale</em> as nuisance randomness and removes it through normalization, leaving only the <strong>relative weights</strong> to determine the estimate.</p>
-<h4 id="Control-variate-view-(delta-method-approximation)">Control variate view (delta-method approximation)<a class="anchor-link" href="#Control-variate-view-(delta-method-approximation)">¶</a></h4><p>Write SNIS as a ratio $\bar X/\bar Y$ with $X=f(Z)w(Z)$, $Y=w(Z)$.
-A first-order expansion yields
-$$
-\hat I_{\text{SNIS}}
-\approx
-\hat I_{\text{OIS}}
--
-I(\bar w-\mu_0),
-\quad \bar w=\frac1N\sum_{i=1}^N w(Z_i).
-$$</p>
-<ul>
-<li>The term $(\bar w-\mu_0)$ has zero mean.</li>
-<li>Subtracting it does not change the expectation to first order.</li>
-<li>It does reduce variance if it is correlated with $\hat I_{\text{OIS}}$.</li>
-</ul>
-<p>Hence, SNIS ≈ OIS <strong>plus a control variate</strong> with coefficient (I).</p>
-<h4 id="Variance-decomposition-(asymptotic)">Variance decomposition (asymptotic)<a class="anchor-link" href="#Variance-decomposition-(asymptotic)">¶</a></h4><p>$$
-\operatorname{Var}(\hat I_{\text{SNIS}})
-\approx
-\frac{1}{N\mu_0^2}
-\Big(
-\operatorname{Var}(fw)
+<p>The only difference between the two is whether $N(s)$ and $S(s)$ are updated only at the first visit to $s$ in an episode, or at every visit. For both methods, as the number of visits increases, by the law of large numbers, $V(s)$ converges to the true $v_\pi(s)$. In real use cases, we usually use every-visit MC, since using more samples usually leads to lower estimation variance and higher data efficiency.</p>
+<h4 id="First-Visit-MC">First-Visit MC<a class="anchor-link" href="#First-Visit-MC">¶</a></h4><pre><code>Initialize V(s) arbitrarily for all s
+Initialize N(s) = 0 for all s
 
-+ I^2\operatorname{Var}(w)
+Loop forever (for each episode):
+    Generate an episode: S0, A0, R1, S1, A1, R2, ... , ST (terminal)
 
-- 2I\operatorname{Cov}(fw,w)
-  \Big)
+    G = 0
+    Visited = empty set
+
+    for t = T-1 down to 0:
+        G = γ * G + R[t+1]          # now G == G_t
+
+        if S[t] not in Visited:     # FIRST visit in this episode
+            Visited.add(S[t])
+
+            N(S[t]) = N(S[t]) + 1
+            V(S[t]) = V(S[t]) + (1 / N(S[t])) * (G - V(S[t]))
+            # same as: V(S[t]) ← (1 - 1/N) V(S[t]) + (1/N) G
+</code></pre>
+<h4 id="Every-Visit-MC">Every-Visit MC<a class="anchor-link" href="#Every-Visit-MC">¶</a></h4><pre><code>Initialize V(s) arbitrarily for all s
+Initialize N(s) = 0 for all s
+
+Loop forever (for each episode):
+    Generate an episode: S0, A0, R1, ... , ST
+
+    G = 0
+
+    for t = T-1 down to 0:
+        G = γ * G + R[t+1]          # G == G_t
+
+        N(S[t]) = N(S[t]) + 1
+        V(S[t]) = V(S[t]) + (1 / N(S[t])) * (G - V(S[t]))
+</code></pre>
+<p>In non-stationary environments, everything stays the same, except that $N(s)$ is replaced with alpha.
+$$
+V(S_t)\leftarrow V(S_t)+\alpha(G_t - V(S_t))
 $$</p>
-<p>Compared to OIS $\big(\frac{1}{N}\operatorname{Var}(fw)\big)$, the <em>negative covariance term</em>
+<h3 id="MC-Policy-Evaluation-For-Action-Values">MC Policy Evaluation For Action Values<a class="anchor-link" href="#MC-Policy-Evaluation-For-Action-Values">¶</a></h3><p>The algorithm structure, return calculation, and incremental update formula are exactly the same as in MC Policy Evaluation for state value.</p>
+<h4 id="First-Visit-MC">First-Visit MC<a class="anchor-link" href="#First-Visit-MC">¶</a></h4><pre><code>Initialize Q(s,a) arbitrarily for all s, a
+Initialize N(s,a) = 0 for all s, a
+
+Loop forever (for each episode):
+    Generate an episode using policy π:
+        S0, A0, R1, S1, A1, R2, ... , ST
+
+    G = 0
+    Visited = empty set    # stores (s,a) pairs
+
+    for t = T-1 down to 0:
+        G = γ * G + R[t+1]         # now G == G_t
+
+        if (S[t], A[t]) not in Visited:   # FIRST visit
+            Visited.add((S[t], A[t]))
+
+            N(S[t], A[t]) = N(S[t], A[t]) + 1
+            Q(S[t], A[t]) =
+                Q(S[t], A[t]) + (1 / N(S[t], A[t])) * (G - Q(S[t], A[t]))
+</code></pre>
+<h4 id="Every-Visit-MC">Every-Visit MC<a class="anchor-link" href="#Every-Visit-MC">¶</a></h4><pre><code>Initialize Q(s,a) arbitrarily for all s, a
+Initialize N(s,a) = 0 for all s, a
+
+Loop forever (for each episode):
+    Generate an episode using policy π
+
+    G = 0
+
+    for t = T-1 down to 0:
+        G = γ * G + R[t+1]
+
+        N(S[t], A[t]) = N(S[t], A[t]) + 1
+        Q(S[t], A[t]) =
+            Q(S[t], A[t]) + (1 / N(S[t], A[t])) * (G - Q(S[t], A[t]))
+
+</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=85ec1bac">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----Monte-Carlo-Control-(Standard-Version,-No-Exploration)">--- Monte Carlo Control (Standard Version, No Exploration)<a class="anchor-link" href="#----Monte-Carlo-Control-(Standard-Version,-No-Exploration)">¶</a></h2><p>Monte Carlo Control = MC Policy Iteration.</p>
+<p>Its policy improvement step is structurally identical to the one in traditional Policy Iteration; both make the current value function greedy (greedify). The only difference is in policy evaluation: PI uses the model, while MC uses sampled averages.</p>
+<div class="highlight"><pre><span></span><span class="n">Initialize</span><span class="w"> </span><span class="n">π</span><span class="w"> </span><span class="n">arbitrarily</span>
+<span class="n">Initialize</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="n">arbitrarily</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">all</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="n">a</span>
+<span class="n">Initialize</span><span class="w"> </span><span class="n">N</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">all</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="n">a</span>
+
+<span class="n">repeat:</span>
+<span class="w">    </span><span class="c1"># Policy Evaluation (Monte Carlo)</span>
+<span class="w">    </span><span class="c1"># Evaluate q_π by generating episodes following π and averaging returns.</span>
+<span class="w">    </span><span class="n">Generate</span><span class="w"> </span><span class="n">some</span><span class="w"> </span><span class="n">number</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">episodes</span><span class="w"> </span><span class="n">using</span><span class="w"> </span><span class="n">policy</span><span class="w"> </span><span class="n">π:</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="nb">each</span><span class="w"> </span><span class="n">episode:</span><span class="w"> </span><span class="n">S0</span><span class="p">,</span><span class="n">A0</span><span class="p">,</span><span class="n">R1</span><span class="p">,</span><span class="n">S1</span><span class="p">,</span><span class="n">A1</span><span class="p">,</span><span class="n">R2</span><span class="p">,</span><span class="o">...</span><span class="p">,</span><span class="n">ST</span>
+<span class="w">            </span><span class="n">G</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">T</span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="n">down</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">                </span><span class="n">G</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">γ</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">G</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">R</span><span class="p">[</span><span class="n">t</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="w">                 </span><span class="c1"># G == G_t</span>
+<span class="w">                </span><span class="n">N</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">N</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">                </span><span class="n">Q</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">N</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">]))</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">(</span><span class="n">G</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">]))</span>
+
+<span class="w">    </span><span class="c1"># Policy Improvement</span>
+<span class="w">    </span><span class="n">policy_stable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">True</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">S:</span>
+<span class="w">        </span><span class="n">old_action</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+<span class="w">        </span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">argmax_a</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">old_action</span><span class="w"> </span><span class="err">≠</span><span class="w"> </span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">            </span><span class="n">policy_stable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">False</span>
+
+<span class="k">until</span><span class="w"> </span><span class="n">policy_stable</span>
+<span class="k">return</span><span class="w"> </span><span class="n">π</span><span class="o">*</span><span class="p">,</span><span class="w"> </span><span class="n">Q</span>
+</pre></div>
+<h3 id="Add-Exploration">Add Exploration<a class="anchor-link" href="#Add-Exploration">¶</a></h3><p><strong>Why need to add exploration</strong></p>
+<ul>
+<li><p>Early noise: The initial estimates of MC / TD are inherently high-variance. Without exploration, a single accidental high return can determine all future sampled paths.</p>
+</li>
+<li><p>Coverage: Under the current sampling policy, when generating episodes, it is possible that certain low-probability states or actions are never visited. Specifically, in this step</p>
+<div class="highlight"><pre><span></span><span class="n">Generate</span><span class="w"> </span><span class="n">some</span><span class="w"> </span><span class="n">number</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">episodes</span><span class="w"> </span><span class="n">using</span><span class="w"> </span><span class="n">policy</span><span class="w"> </span><span class="n">π:</span><span class="w"> </span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nb">each</span><span class="w"> </span><span class="n">episode:</span><span class="w"> </span><span class="n">S0</span><span class="p">,</span><span class="n">A0</span><span class="p">,</span><span class="n">R1</span><span class="p">,</span><span class="n">S1</span><span class="p">,</span><span class="n">A1</span><span class="p">,</span><span class="n">R2</span><span class="p">,</span><span class="o">...</span><span class="p">,</span><span class="n">ST</span>
+</pre></div>
+<p>To learn the optimal policy, it is necessary to have samples for every relevant state/action.</p>
+</li>
+</ul>
+<p><strong>Where to add exploration</strong></p>
+<p>Exploration does not happen in the evaluation step, but rather in the choice of which policy to use for sampling.</p>
+<ul>
+<li>In the ε-soft case, exploration is introduced directly through policy improvement.</li>
+<li>In the off-policy case, exploration comes from a separately designed behavior policy b.</li>
+</ul>
+<p>In any case, exploration does not occur during policy evaluation. Policy evaluation means: given a sampling policy, how do we estimate the value of the target policy? It only does the following: evaluates the value of the ε-soft policy itself (on-policy), or uses importance sampling (IS) to correct for the difference caused by the behavior policy (off-policy).</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=4bd1cbf0">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----On-Policy-MC-Control-(with-Exploration)">--- On-Policy MC Control (with Exploration)<a class="anchor-link" href="#----On-Policy-MC-Control-(with-Exploration)">¶</a></h2><p>In practice, MC Control must include exploration (such as ε-soft or a behavior policy); otherwise, there is no guarantee of sufficient action coverage and it is easy to get stuck in suboptimal behavior. The fundamental version without exploration is only used for theoretical illustration of the structure of MC Policy Iteration and is not actually learnable.</p>
+<p><strong>On-policy &amp; Off-policy</strong></p>
+<p>Almost all RL algorithms can be classified as on-policy or off-policy. For example,</p>
+<ul>
+<li>MC Control（ε-soft） ↔ Off-policy MC Control</li>
+<li>SARSA ↔ Q-learning</li>
+<li>Policy Gradient / A2C / PPO ↔ DQN</li>
+</ul>
+<p>In reinforcement learning, the distinction between on-policy and off-policy always depends solely on whether the sampling policy is the same as the policy being learned or improved. This definition is consistent across all RL algorithms.</p>
+<ul>
+<li>On-policy: The policy used to collect data is the same as the policy being evaluated or improved.</li>
+<li>Off-policy: The policy used to collect data is different from the policy being evaluated or improved.</li>
+</ul>
+<p>Some algorithms (such as PPO, A2C) update a new policy using data from an old policy in practice. However, since the data comes from a slightly lagged version of the current policy and not from long-term experience replay, these are still classified as belonging to the on-policy family.</p>
+<h3 id="Exploring-Starts-(Theoretical-Construction)">Exploring Starts (Theoretical Construction)<a class="anchor-link" href="#Exploring-Starts-(Theoretical-Construction)">¶</a></h3><p>Exploring Starts has an <strong>algorithm structure identical to standard MC Control</strong>, with the only difference being that each episode's initial $(s_0, a_0)$ is subject to the enforced exploration condition: "Every state–action pair has a non-zero probability of being the starting pair." In the MC Control pseudocode above, you just need to add (or replace) one line:</p>
+<div class="highlight"><pre><span></span><span class="c1"># Exploring Starts (only difference)</span>
+<span class="n">Choose</span><span class="w"> </span><span class="n">S0</span><span class="p">,</span><span class="w"> </span><span class="n">A0</span><span class="w"> </span><span class="n">such</span><span class="w"> </span><span class="n">that</span><span class="w"> </span><span class="n">P</span><span class="p">(</span><span class="n">S0</span><span class="o">=</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">A0</span><span class="o">=</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">all</span><span class="w"> </span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span>
+<span class="n">Generate</span><span class="w"> </span><span class="n">episode</span><span class="w"> </span><span class="n">starting</span><span class="w"> </span><span class="n">from</span><span class="w"> </span><span class="n">S0</span><span class="p">,</span><span class="w"> </span><span class="n">A0</span><span class="p">,</span><span class="w"> </span><span class="k">then</span><span class="w"> </span><span class="n">follow</span><span class="w"> </span><span class="n">policy</span><span class="w"> </span><span class="n">π</span>
+</pre></div>
+<p>Why does it guarantee exploration? Because the initial $(s_0,a_0)$ of every episode is chosen with nonzero probability for all $(s,a)$ pairs, and as the number of episodes approaches infinity, according to the law of large numbers, <strong>every state–action pair will be visited infinitely often as a starting point</strong>. Since the starting point already enforces visiting $(s,a)$, and the rest of the episode follows the policy, we no longer need to rely on the policy itself to "accidentally explore" it.</p>
+<p>Why is this called a "theoretical solution"? Because in real systems it is almost impossible to randomly assign the initial $(s_0,a_0)$ in a fully controllable manner.</p>
+<blockquote>
+<p>Exploring Starts is on-policy because, in each episode, the policy used to generate trajectories is the same as the one being evaluated and improved, denoted by $\pi$. By default, standard MC Control is considered on-policy.</p>
+</blockquote>
+<h3 id="%CE%B5-soft-Policy-MC-(Practical-Solution)">ε-soft Policy MC (Practical Solution)<a class="anchor-link" href="#%CE%B5-soft-Policy-MC-(Practical-Solution)">¶</a></h3><p><strong>The core structure of ε-soft policy MC Control is the same as standard MC Control</strong>. The only difference is that, during the policy improvement step, ε-soft MC Control replaces the deterministic greedy policy with an "ε-soft greedy" (stochastic) policy, ensuring that the algorithm always continues to explore.
 $$
--2I \operatorname{Cov}(fw,w)
+\pi(a|s)=
+\begin{cases}
+1-\varepsilon + \varepsilon/|A(s)| &amp; a=a^* \\
+\varepsilon/|A(s)| &amp; a\neq a^*
+\end{cases}
 $$
-is the variance reduction provided by the control variate. When $fw$ and $w$ are strongly positively correlated (common in practice), SNIS yields substantially smaller variance.</p>
-<p><strong>Takeaway:</strong> SNIS reduces variance by normalizing away random global weight scales; statistically, this is equivalent to adding a strong, automatically constructed control variate to ordinary importance sampling.</p>
+Basically, replace</p>
+<div class="highlight"><pre><span></span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">argmax_a</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span>
+</pre></div>
+<p>with</p>
+<div class="highlight"><pre><span></span><span class="n">a</span><span class="o">*</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">argmax_a</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span>
+<span class="k">for</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">A</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">    </span><span class="n">π</span><span class="p">(</span><span class="n">a</span><span class="o">|</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ε</span><span class="sr">/|A(s)| if a != a* else 1 - ε + ε/</span><span class="o">|</span><span class="n">A</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">|</span>
+</pre></div>
+<p>ε-soft Policy MC converges to the optimal ε-soft policy, but <strong>cannot converge to the oracle policy $\pi^*$ (a fully greedy policy)</strong>. This is because an ε-soft policy is required to assign nonzero probability to every action, whereas <strong>a completely greedy policy violates this constraint and thus is not even within the permissible set of policies for the algorithm</strong>. Therefore, ε-soft MC Control is not "approaching greedy," but rather achieves the best within the policy space where exploration is mandatory; a completely greedy policy is excluded from the beginning.</p>
+<blockquote>
+<p>ε-soft policy MC is on-policy because, in each episode, the policy used to generate trajectories is the same as the one being evaluated and improved, denoted by $\pi$. By default, standard MC Control is considered on-policy.</p>
+</blockquote>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=81b0eac9">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h2 id="----Off-policy-MC-Control-(with-Exploration)">--- Off-policy MC Control (with Exploration)<a class="anchor-link" href="#----Off-policy-MC-Control-(with-Exploration)">¶</a></h2><p>Off-policy MC(-control): Use a behavior policy $\mu$ to sample data, and use this data to evaluate or improve another target policy $\pi$.</p>
+<p>Regarding how to choose the behavior policy $\mu$, our requirement is: as long as any action the target policy $\pi$ might take can also be taken (with nonzero probability) by the behavior policy $\mu$, that's sufficient. That is,
+$$\mu(a \mid s) &gt; 0 \quad \text{for every } (s,a) \text{ such that } \pi(a \mid s) &gt; 0$$</p>
+<p><strong>Core difficulty of Off-policy MC: You cannot simply average returns.</strong></p>
+<ul>
+<li><p>In on-policy settings, sampled trajectories come from π, and the returns G are sampled from the correct distribution, so
+$$
+  V_\pi(s) = \mathbb{E}_\pi[G \mid S_t=s]
+  $$
+Therefore, directly averaging the returns to estimate the value function (for example, $V(s) = \frac{S(s)}{N(s)}$) is unbiased.</p>
+</li>
+<li><p>In off-policy settings, the data comes from μ, but what you want is the expectation under π. However,
+$$
+\mathbb{E}_\mu[G] \neq \mathbb{E}_\pi[G]
+$$
+So directly averaging to estimate the value function (for example, $V(s) = \frac{S(s)}{N(s)}$) will be biased. If your estimator is inherently biased, then by LLM, it may or may not converge to the real value function. Therefore, in theory, we generally require the estimator to be unbiased first, and then try to reduce variance.</p>
+</li>
+</ul>
+<p>To construct an unbiased estimator, we need to use <strong>importance sampling</strong>, giving higher weights to trajectories that are more like π.</p>
+<h3 id="Importance-Sampling-Estimators">Importance Sampling Estimators<a class="anchor-link" href="#Importance-Sampling-Estimators">¶</a></h3><ul>
+<li><p>Ordinary IS Estimator (unbiased, high variance)</p>
+<p>Corresponds to ordinary importance sampling: it directly averages importance-weighted returns and is unbiased, but highly sensitive to large fluctuations in the importance ratios.
+$$
+  V(s) =
+  \frac{1}{|T(s)|}
+  \sum_{t\in T(s)} \rho_t^T G_t
+  $$</p>
+</li>
+<li><p>Weighted / Self-Normalized IS Estimator (biased but asymptotically unbiased, low variance)</p>
+<p>Corresponds to self-normalized importance sampling (SNIS): it normalizes by the sum of importance weights, introducing bias but typically achieving much lower variance.
+$$
+  V(s) =
+  \frac{\sum_t \rho_t^T G_t}{\sum_t \rho_t^T}
+  $$</p>
+</li>
+</ul>
+<p>The variance reduction of the weighted estimator comes from its ability to handle accidental weight inflation: when all importance weights are simultaneously scaled up due to sampling accidents, the normalization absorbs this global scale fluctuation, preventing a few trajectories from dominating the estimate.</p>
+<p>For formal definitions of ordinary importance sampling, self-normalized importance sampling, and their variance comparison, see the Importance Sampling notes.</p>
+<h3 id="Algorithm">Algorithm<a class="anchor-link" href="#Algorithm">¶</a></h3><p><strong>The structure of Off-Policy MC Control is basically the same as standard On-Policy MC Control</strong> (still: Policy Evaluation → Policy Improvement → policy_stable check), but the main modifications for Off-Policy are concentrated in the Policy Evaluation part. Below is the pseudocode for Off-Policy Monte Carlo Control (Weighted Importance Sampling version). The structure is kept as close as possible to On-Policy MC-Control, and any lines that are additional or modified compared to On-Policy are marked with <code># [DIFF]</code>.</p>
+<div class="highlight"><pre><span></span><span class="c1">#### Off-Policy Monte Carlo Control (Weighted Importance Sampling)</span>
+
+<span class="n">Initialize</span><span class="w"> </span><span class="n">π</span><span class="w"> </span><span class="n">arbitrarily</span><span class="w">                                  </span><span class="c1"># target policy</span>
+<span class="n">Initialize</span><span class="w"> </span><span class="n">μ</span><span class="w"> </span><span class="n">as</span><span class="w"> </span><span class="n">an</span><span class="w"> </span><span class="n">exploratory</span><span class="w"> </span><span class="n">behavior</span><span class="w"> </span><span class="n">policy</span><span class="w">             </span><span class="c1"># [DIFF] behavior policy for sampling</span>
+<span class="n">Initialize</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="n">arbitrarily</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">all</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="n">a</span>
+<span class="n">Initialize</span><span class="w"> </span><span class="n">C</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">all</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="w">                          </span><span class="c1"># [DIFF] replaces N(s,a)</span>
+
+<span class="n">repeat:</span>
+<span class="w">    </span><span class="c1"># Policy Evaluation (Off-Policy Monte Carlo)</span>
+<span class="w">    </span><span class="c1"># Evaluate q_π using episodes generated by μ, weighted by importance sampling.</span>
+
+<span class="w">    </span><span class="n">Generate</span><span class="w"> </span><span class="n">some</span><span class="w"> </span><span class="n">number</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">episodes</span><span class="w"> </span><span class="n">using</span><span class="w"> </span><span class="n">behavior</span><span class="w"> </span><span class="n">policy</span><span class="w"> </span><span class="n">μ:</span><span class="w">     </span><span class="c1"># [DIFF]</span>
+<span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="nb">each</span><span class="w"> </span><span class="n">episode:</span><span class="w"> </span><span class="n">S0</span><span class="p">,</span><span class="n">A0</span><span class="p">,</span><span class="n">R1</span><span class="p">,</span><span class="n">S1</span><span class="p">,</span><span class="n">A1</span><span class="p">,</span><span class="n">R2</span><span class="p">,</span><span class="o">...</span><span class="p">,</span><span class="n">ST</span>
+
+<span class="w">            </span><span class="n">G</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span>
+<span class="w">            </span><span class="n">ρ</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w">                                                </span><span class="c1"># [DIFF] importance sampling ratio accumulator</span>
+
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">T</span><span class="o">-</span><span class="mi">1</span><span class="w"> </span><span class="n">down</span><span class="w"> </span><span class="n">to</span><span class="w"> </span><span class="mi">0</span><span class="p">:</span>
+<span class="w">                </span><span class="n">G</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">γ</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">G</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">R</span><span class="p">[</span><span class="n">t</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="w">                               </span><span class="c1"># G == G_t</span>
+
+<span class="w">                </span><span class="c1"># Update importance sampling ratio for trajectory from t to end</span>
+<span class="w">                </span><span class="n">ρ</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ρ</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">π</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">]</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">μ</span><span class="p">(</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">]</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w">          </span><span class="c1"># [DIFF]</span>
+
+<span class="w">                </span><span class="c1"># Weighted importance sampling update</span>
+<span class="w">                </span><span class="n">C</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">C</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">ρ</span><span class="w">                  </span><span class="c1"># [DIFF]</span>
+<span class="w">                </span><span class="n">Q</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">])</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">ρ</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">C</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">]))</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">(</span><span class="n">G</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="n">t</span><span class="p">],</span><span class="n">A</span><span class="p">[</span><span class="n">t</span><span class="p">]))</span><span class="w">   </span><span class="c1"># [DIFF]</span>
+
+<span class="w">    </span><span class="c1"># Policy Improvement (same as on-policy)</span>
+<span class="w">    </span><span class="n">policy_stable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">True</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="n">in</span><span class="w"> </span><span class="n">S:</span>
+<span class="w">        </span><span class="n">old_action</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+<span class="w">        </span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">argmax_a</span><span class="w"> </span><span class="n">Q</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="n">a</span><span class="p">)</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">old_action</span><span class="w"> </span><span class="err">≠</span><span class="w"> </span><span class="n">π</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+<span class="w">            </span><span class="n">policy_stable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">False</span>
+
+<span class="k">until</span><span class="w"> </span><span class="n">policy_stable</span>
+<span class="k">return</span><span class="w"> </span><span class="n">π</span><span class="o">*</span><span class="p">,</span><span class="w"> </span><span class="n">Q</span>
+</pre></div>
+<p>Differences from On-Policy Standard MC-Control:</p>
+<ol>
+<li>An additional behavior policy μ is introduced, and μ is used to sample episodes.</li>
+</ol>
+<ul>
+<li><code>Initialize μ ...</code> and <code>Generate episodes using μ</code> are the two <code># [DIFF]</code> lines.</li>
+</ul>
+<ol start="2">
+<li>Replace the counter <code>N(s,a)</code> with the cumulative weight <code>C(s,a)</code>.</li>
+</ol>
+<ul>
+<li><code>Initialize C(s,a)=0</code> (<code># [DIFF]</code>)</li>
+<li>When updating, use <code>C += ρ</code> instead of <code>N += 1</code></li>
+</ul>
+<ol start="3">
+<li>During episode replay, the importance sampling ratio ρ is introduced, and Q is updated in a weighted manner.</li>
+</ol>
+<ul>
+<li><code>ρ = 1</code></li>
+<li><code>ρ = ρ * π/μ</code></li>
+<li><code>Q ← Q + (ρ/C)*(G-Q)</code></li>
+</ul>
 </div>
 </div>
 </div>
